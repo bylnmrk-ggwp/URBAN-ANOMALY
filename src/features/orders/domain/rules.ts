@@ -23,6 +23,25 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cod: 'Cash on Delivery',
   online: 'Online Payment',
+  gcash: 'GCash',
+}
+
+/**
+ * Methods the buyer pays before fulfilment. Their orders cannot be confirmed until
+ * `paymentStatus` is `paid`: online via the provider webhook, GCash once an admin has
+ * matched the buyer's reference number against the store's GCash account.
+ */
+export function isPrepaidMethod(paymentMethod: PaymentMethod): boolean {
+  return paymentMethod === 'online' || paymentMethod === 'gcash'
+}
+
+/** GCash reference numbers as printed on the receipt: 8–20 letters or digits. */
+export const GCASH_REFERENCE_PATTERN = /^[A-Za-z0-9]{8,20}$/
+export const GCASH_REFERENCE_MESSAGE =
+  'Enter the 8–20 character reference number from your GCash receipt.'
+
+export function isValidGcashReference(value: string): boolean {
+  return GCASH_REFERENCE_PATTERN.test(value)
 }
 
 /**
@@ -58,10 +77,11 @@ export function getAvailableAdminActions(
 ) {
   return ADMIN_ORDER_ACTIONS.filter((action) => {
     if (!canTransition(order.status, action.status)) return false
-    // Online orders cannot be confirmed by hand before the payment provider reports success.
+    // Prepaid orders cannot be confirmed by hand before the payment is in: the provider
+    // webhook for online orders, an admin verifying the reference for GCash.
     if (
       action.status === 'confirmed' &&
-      order.paymentMethod === 'online' &&
+      isPrepaidMethod(order.paymentMethod) &&
       order.paymentStatus !== 'paid'
     ) {
       return false
@@ -94,8 +114,9 @@ export function isTerminalStatus(status: OrderStatus): boolean {
   return ORDER_STATUS_TRANSITIONS[status].length === 0
 }
 
+/** GCash orders skip `pending_payment`: the buyer has already paid, an admin verifies the reference. */
 export function initialStatusFor(paymentMethod: PaymentMethod): OrderStatus {
-  return paymentMethod === 'cod' ? 'pending_confirmation' : 'pending_payment'
+  return paymentMethod === 'online' ? 'pending_payment' : 'pending_confirmation'
 }
 
 export function initialPaymentStatusFor(paymentMethod: PaymentMethod): PaymentStatus {

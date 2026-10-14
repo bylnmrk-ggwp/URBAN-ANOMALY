@@ -299,6 +299,8 @@ export type Database = {
           total: number
           payment_method: Database['public']['Enums']['payment_method']
           payment_status: Database['public']['Enums']['payment_status']
+          /** 0005_gcash.sql; optional so a database still on 0004 keeps working. */
+          payment_reference?: string | null
           status: Database['public']['Enums']['order_status']
           courier: string | null
           tracking_number: string | null
@@ -326,6 +328,7 @@ export type Database = {
           total: number
           payment_method: Database['public']['Enums']['payment_method']
           payment_status: Database['public']['Enums']['payment_status']
+          payment_reference?: string | null
           status: Database['public']['Enums']['order_status']
           courier?: string | null
           tracking_number?: string | null
@@ -353,6 +356,7 @@ export type Database = {
           total?: number
           payment_method?: Database['public']['Enums']['payment_method']
           payment_status?: Database['public']['Enums']['payment_status']
+          payment_reference?: string | null
           status?: Database['public']['Enums']['order_status']
           courier?: string | null
           tracking_number?: string | null
@@ -579,6 +583,11 @@ export type Database = {
           notify_low_stock: boolean
           notify_payment_events: boolean
           updated_at: string
+          /** 0005_gcash.sql; optional so a database still on 0004 keeps working. */
+          gcash_enabled?: boolean
+          gcash_account_name?: string
+          gcash_number?: string
+          gcash_qr_url?: string | null
         }
         Insert: {
           id?: number
@@ -598,6 +607,10 @@ export type Database = {
           notify_low_stock?: boolean
           notify_payment_events?: boolean
           updated_at?: string
+          gcash_enabled?: boolean
+          gcash_account_name?: string
+          gcash_number?: string
+          gcash_qr_url?: string | null
         }
         Update: {
           id?: number
@@ -617,6 +630,10 @@ export type Database = {
           notify_low_stock?: boolean
           notify_payment_events?: boolean
           updated_at?: string
+          gcash_enabled?: boolean
+          gcash_account_name?: string
+          gcash_number?: string
+          gcash_qr_url?: string | null
         }
         Relationships: []
       }
@@ -878,6 +895,8 @@ export type Database = {
           payment_status: Database['public']['Enums']['payment_status']
           status: Database['public']['Enums']['order_status']
           created_at: string
+          /** 0005_gcash.sql; optional so a database still on 0004 keeps working. */
+          payment_reference?: string | null
         }
         Relationships: []
       }
@@ -966,6 +985,11 @@ export type Database = {
         Returns: undefined
       }
       mark_cod_payment_collected: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
+      /** 0005_gcash.sql */
+      mark_gcash_payment_verified: {
         Args: { p_order_id: string }
         Returns: undefined
       }
@@ -1079,7 +1103,8 @@ export type Database = {
         | 'refund_pending'
         | 'refunded'
         | 'partially_refunded'
-      payment_method: 'cod' | 'online'
+      /** 'gcash' added by 0005_gcash.sql */
+      payment_method: 'cod' | 'online' | 'gcash'
       user_role: 'buyer' | 'admin'
       /** 0003_admin_roles.sql */
       admin_role: 'owner' | 'staff'

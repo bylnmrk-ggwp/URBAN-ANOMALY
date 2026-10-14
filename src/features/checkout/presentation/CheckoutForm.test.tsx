@@ -80,7 +80,55 @@ describe('CheckoutForm', () => {
       deliveryInstructions: '',
       customerNote: '',
       paymentMethod: 'cod',
+      paymentReference: '',
     })
+  })
+
+  it('shows the QR, account details and requires a reference number for GCash', async () => {
+    const { user, submit, onSubmit } = await renderForm()
+
+    await user.type(screen.getByLabelText('Full name'), validValues.fullName)
+    await user.type(screen.getByLabelText('Email'), validValues.email)
+    await user.type(screen.getByLabelText('Mobile number'), validValues.phone)
+    await user.type(screen.getByLabelText('Street address'), validValues.addressLine)
+    await user.type(screen.getByLabelText('Barangay'), validValues.barangay)
+    await user.type(screen.getByLabelText('City / Municipality'), validValues.city)
+    await user.type(screen.getByLabelText('Province'), validValues.province)
+    await user.type(screen.getByLabelText('Postal code'), validValues.postalCode)
+
+    // The instructions only appear once GCash is selected.
+    expect(screen.queryByRole('img', { name: 'GCash QR code' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: /^GCash/ }))
+
+    const qr = screen.getByRole('img', { name: 'GCash QR code' })
+    expect(qr).toHaveAttribute('src', SEED_SETTINGS.gcashQrUrl)
+    expect(screen.getByText(SEED_SETTINGS.gcashAccountName)).toBeInTheDocument()
+    expect(screen.getByText(SEED_SETTINGS.gcashNumber)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy gcash number' })).toBeInTheDocument()
+    expect(screen.getByText('Found in your GCash receipt.')).toBeInTheDocument()
+
+    await user.click(submit)
+    expect(
+      await screen.findByText('Enter the 8–20 character reference number from your GCash receipt.'),
+    ).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.type(screen.getByLabelText('GCash reference number'), ' 1029384756123 ')
+    await user.click(submit)
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({
+      paymentMethod: 'gcash',
+      paymentReference: '1029384756123',
+    })
+  })
+
+  it('hides GCash entirely until the store enables it and uploads a QR', async () => {
+    settingsState.data = { ...SEED_SETTINGS, gcashEnabled: true, gcashQrUrl: null }
+    await renderForm()
+
+    expect(screen.queryByRole('radio', { name: /^GCash/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /cash on delivery/i })).toBeChecked()
   })
 
   it('disables the online payment option when the store turns it off', async () => {

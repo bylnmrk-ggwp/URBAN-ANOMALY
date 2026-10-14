@@ -12,6 +12,12 @@ export const SEED_SETTINGS: StoreSettings = {
   onlinePaymentEnabled: true,
   onlinePaymentConfigured: false,
   emailNotificationsConfigured: false,
+  gcashEnabled: true,
+  gcashAccountName: 'Urban Anomaly',
+  gcashNumber: '09171230000',
+  // Demo placeholder; a real store uploads its own QR from Settings.
+  gcashQrUrl:
+    'https://api.qrserver.com/v1/create-qr-code/?size=480x480&data=URBAN%20ANOMALY%20demo%20GCash%20QR',
   defaultLowStockThreshold: 5,
   notifyNewOrders: true,
   notifyLowStock: true,

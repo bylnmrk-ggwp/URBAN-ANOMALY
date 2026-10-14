@@ -13,7 +13,8 @@ export type OrderStatus =
 export type PaymentStatus =
   'unpaid' | 'pending' | 'paid' | 'failed' | 'refund_pending' | 'refunded' | 'partially_refunded'
 
-export type PaymentMethod = 'cod' | 'online'
+/** `gcash`: the buyer scans the store's QR, pays, and types the GCash reference number. */
+export type PaymentMethod = 'cod' | 'online' | 'gcash'
 
 export interface OrderCustomer {
   userId: string | null
@@ -71,6 +72,8 @@ export interface Order {
   total: number
   paymentMethod: PaymentMethod
   paymentStatus: PaymentStatus
+  /** GCash reference number typed by the buyer at checkout; null for every other method. */
+  paymentReference: string | null
   status: OrderStatus
   statusHistory: OrderStatusEvent[]
   tracking: OrderTracking | null
@@ -89,6 +92,7 @@ export interface OrderSummary {
   total: number
   paymentMethod: PaymentMethod
   paymentStatus: PaymentStatus
+  paymentReference: string | null
   status: OrderStatus
   createdAt: ISODateString
 }
@@ -101,6 +105,8 @@ export interface PlaceOrderInput {
   customerNote: string
   /** Discount code applied at checkout; validated again server-side when the order is placed. */
   discountCode?: string
+  /** GCash reference number from the buyer's receipt; required for `gcash`, ignored otherwise. */
+  paymentReference?: string
 }
 
 /** Result of placing an order. Online payments return a handoff URL for the payment provider. */

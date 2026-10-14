@@ -36,6 +36,7 @@ export function toOrderSummary(order: Order): OrderSummary {
     total: order.total,
     paymentMethod: order.paymentMethod,
     paymentStatus: order.paymentStatus,
+    paymentReference: order.paymentReference,
     status: order.status,
     createdAt: order.createdAt,
   }

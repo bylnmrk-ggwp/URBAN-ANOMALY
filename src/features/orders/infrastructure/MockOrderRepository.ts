@@ -22,22 +22,33 @@ import type {
   OrderStatusEvent,
   OrderSummary,
   OrderTracking,
+  PaymentMethod,
   PlaceOrderInput,
   PlaceOrderResult,
 } from '../domain/entities'
 import type { OrderRepository } from '../domain/repository'
 import {
+  GCASH_REFERENCE_MESSAGE,
   PAYMENT_METHOD_LABELS,
   canCustomerCancel,
   canTransition,
   generateOrderNumber,
   initialPaymentStatusFor,
   initialStatusFor,
+  isPrepaidMethod,
+  isValidGcashReference,
 } from '../domain/rules'
 import { OrderEmailGateway, describeOrderUpdateNotification } from './orderEmails'
 
 const ADMIN_PAGE_SIZE = 20
 const OUT_OF_STOCK_MESSAGE = 'Some items are no longer available in the requested quantity.'
+
+/** First status-history note, by how the buyer chose to pay. */
+const PLACED_NOTES: Record<PaymentMethod, string> = {
+  cod: 'Order received.',
+  online: 'Order placed, awaiting online payment.',
+  gcash: 'Order placed, GCash payment awaiting verification.',
+}
 
 export class MockOrderRepository implements OrderRepository {
   private readonly store: MockStore
@@ -96,6 +107,7 @@ export class MockOrderRepository implements OrderRepository {
     const shippingFee = calculateShippingFee(subtotal)
     const discountCode = this.resolveDiscount(input.discountCode, subtotal)
     const discount = discountCode ? computeDiscountAmount(discountCode, subtotal) : 0
+    const paymentReference = this.resolvePaymentReference(input)
     const status = initialStatusFor(input.paymentMethod)
     const orderNumber = generateOrderNumber(this.store.nextOrderSequence())
 
@@ -111,15 +123,13 @@ export class MockOrderRepository implements OrderRepository {
       total: round2(subtotal + shippingFee - discount),
       paymentMethod: input.paymentMethod,
       paymentStatus: initialPaymentStatusFor(input.paymentMethod),
+      paymentReference,
       status,
       statusHistory: [
         {
           id: this.store.nextId('evt'),
           status,
-          note:
-            input.paymentMethod === 'online'
-              ? 'Order placed, awaiting online payment.'
-              : 'Order received.',
+          note: PLACED_NOTES[input.paymentMethod],
           actor: 'system',
           createdAt: now,
         },
@@ -268,12 +278,12 @@ export class MockOrderRepository implements OrderRepository {
     }
     if (
       status === 'confirmed' &&
-      order.paymentMethod === 'online' &&
+      isPrepaidMethod(order.paymentMethod) &&
       order.paymentStatus !== 'paid'
     ) {
       throw new AppError(
         'validation',
-        'Online orders can only be confirmed once payment is received.',
+        'Prepaid orders can only be confirmed once payment is received.',
       )
     }
 
@@ -338,6 +348,36 @@ export class MockOrderRepository implements OrderRepository {
     return clone(order)
   }
 
+  async markGcashPaymentVerified(id: string): Promise<Order> {
+    await this.store.delay()
+    const order = this.requireOrder(id)
+    if (
+      order.paymentMethod !== 'gcash' ||
+      order.paymentStatus !== 'pending' ||
+      order.status === 'cancelled'
+    ) {
+      throw new AppError(
+        'validation',
+        'Only GCash orders with a pending payment can be marked as paid.',
+      )
+    }
+    order.paymentStatus = 'paid'
+    // Same status, new event: the verification shows up in the order history.
+    this.appendHistory(
+      order,
+      order.status,
+      `GCash payment verified (ref. ${order.paymentReference ?? 'n/a'}).`,
+      'admin',
+    )
+    this.store.pushNotification({
+      type: 'payment_confirmed',
+      title: `Payment received for ${order.orderNumber}`,
+      message: `GCash payment of PHP ${order.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })} verified for ${order.customer.fullName}.`,
+      href: `/admin/orders/${order.id}`,
+    })
+    return clone(order)
+  }
+
   async updateAdminNotes(id: string, notes: string): Promise<Order> {
     await this.store.delay()
     const order = this.requireOrder(id)
@@ -361,6 +401,19 @@ export class MockOrderRepository implements OrderRepository {
     const reason = discountIneligibleReason(found, subtotal)
     if (reason) throw new AppError('validation', reason)
     return found
+  }
+
+  /** GCash orders must carry a plausible reference number; no other method stores one. */
+  private resolvePaymentReference(input: PlaceOrderInput): string | null {
+    if (input.paymentMethod !== 'gcash') return null
+    if (!this.store.settings.gcashEnabled || !this.store.settings.gcashQrUrl) {
+      throw new AppError('validation', 'GCash is currently unavailable.')
+    }
+    const reference = input.paymentReference?.trim() ?? ''
+    if (!isValidGcashReference(reference)) {
+      throw new AppError('validation', GCASH_REFERENCE_MESSAGE)
+    }
+    return reference
   }
 
   private requireOrder(id: string): Order {
@@ -420,7 +473,7 @@ export class MockOrderRepository implements OrderRepository {
     }
     if (order.paymentStatus === 'paid') {
       order.paymentStatus = 'refund_pending'
-    } else if (order.paymentMethod === 'online' && order.paymentStatus === 'pending') {
+    } else if (isPrepaidMethod(order.paymentMethod) && order.paymentStatus === 'pending') {
       order.paymentStatus = 'failed'
     }
   }

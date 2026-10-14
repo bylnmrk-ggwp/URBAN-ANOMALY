@@ -229,6 +229,8 @@ export function toOrder(
     total: toNumber(row.total),
     paymentMethod: row.payment_method,
     paymentStatus: row.payment_status,
+    // Absent until 0005_gcash.sql is applied.
+    paymentReference: row.payment_reference ?? null,
     status: row.status,
     statusHistory: [...events]
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -258,6 +260,7 @@ export function toOrderSummary(row: OrderSummaryRow): OrderSummary {
     total: toNumber(row.total),
     paymentMethod: row.payment_method,
     paymentStatus: row.payment_status,
+    paymentReference: row.payment_reference ?? null,
     status: row.status,
     createdAt: row.created_at,
   }
@@ -331,6 +334,11 @@ export function toSettings(row: StoreSettingsRow): StoreSettings {
     onlinePaymentEnabled: row.online_payment_enabled,
     onlinePaymentConfigured: row.online_payment_configured,
     emailNotificationsConfigured: row.email_notifications_configured,
+    // GCash columns arrive with 0005_gcash.sql; a database still on 0004 reads as "off".
+    gcashEnabled: row.gcash_enabled ?? false,
+    gcashAccountName: row.gcash_account_name ?? '',
+    gcashNumber: row.gcash_number ?? '',
+    gcashQrUrl: row.gcash_qr_url ?? null,
     defaultLowStockThreshold: row.default_low_stock_threshold,
     notifyNewOrders: row.notify_new_orders,
     notifyLowStock: row.notify_low_stock,
@@ -394,7 +402,7 @@ const paymentStatusSchema = z.enum([
   'refunded',
   'partially_refunded',
 ])
-const paymentMethodSchema = z.enum(['cod', 'online'])
+const paymentMethodSchema = z.enum(['cod', 'online', 'gcash'])
 const productStatusSchema = z.enum(['draft', 'published', 'archived'])
 
 const orderItemJsonSchema = z.object({
@@ -442,6 +450,8 @@ export const orderJsonSchema = z.object({
   total: z.number(),
   payment_method: paymentMethodSchema,
   payment_status: paymentStatusSchema,
+  /** 0005_gcash.sql; optional so a database still on 0004 keeps parsing. */
+  payment_reference: z.string().nullable().optional(),
   status: orderStatusSchema,
   courier: z.string().nullable(),
   tracking_number: z.string().nullable(),
@@ -470,6 +480,7 @@ const orderSummaryJsonSchema = z.object({
   total: z.number(),
   payment_method: paymentMethodSchema,
   payment_status: paymentStatusSchema,
+  payment_reference: z.string().nullable().optional(),
   status: orderStatusSchema,
   created_at: z.string(),
 })

@@ -76,6 +76,8 @@ export default function CheckoutPage() {
         deliveryInstructions: values.deliveryInstructions,
       },
       paymentMethod: values.paymentMethod,
+      // The schema only validates the reference for GCash; never send a stale one otherwise.
+      paymentReference: values.paymentMethod === 'gcash' ? values.paymentReference : undefined,
       items,
       customerNote: values.customerNote,
       discountCode: discount?.code,

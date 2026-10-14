@@ -64,6 +64,7 @@ Key decisions:
 
 - **Cart** stores only `productId`, `variantId`, `quantity` (versioned localStorage). Prices and stock are always re-read from the catalog, and the server recomputes totals at checkout.
 - **Order vs payment state** are separate enums. COD delivery never implies payment; online payments can only become `paid` through the provider webhook. The admin UI only offers transitions from `ORDER_STATUS_TRANSITIONS`, and the backend must re-validate them.
+- **GCash via QR** is a manual prepaid method (`supabase/migrations/0005_gcash.sql`): the owner uploads their QR and account details in Settings, the buyer pays in the app and types the reference number, and an admin marks the order paid before it can be confirmed. See [docs/supabase.md](docs/supabase.md#12-gcash-qr-payments-supabasemigrations0005_gcashsql).
 - **Inventory** changes go through audited movements (`adjust_stock` RPC); the UI never overwrites a stock number.
 - **Roles** come from the backend profile (`profiles.role`), never from client storage. Public registration creates buyers only. In Supabase mode RLS enforces every admin check.
 

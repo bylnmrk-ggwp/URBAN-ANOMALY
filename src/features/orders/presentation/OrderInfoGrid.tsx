@@ -7,7 +7,13 @@ import { cn } from '@/lib/utils'
 interface OrderInfoGridProps {
   order: Pick<
     Order,
-    'customer' | 'shippingAddress' | 'paymentMethod' | 'paymentStatus' | 'tracking' | 'customerNote'
+    | 'customer'
+    | 'shippingAddress'
+    | 'paymentMethod'
+    | 'paymentStatus'
+    | 'paymentReference'
+    | 'tracking'
+    | 'customerNote'
   >
   className?: string
 }
@@ -53,6 +59,14 @@ export function OrderInfoGrid({ order, className }: OrderInfoGridProps) {
           <PaymentMethodBadge method={order.paymentMethod} />
           <PaymentStatusBadge status={order.paymentStatus} />
         </div>
+        {order.paymentReference ? (
+          <p className="text-muted-foreground pt-1">
+            GCash reference:{' '}
+            <span className="text-foreground font-mono text-xs break-all">
+              {order.paymentReference}
+            </span>
+          </p>
+        ) : null}
       </InfoBlock>
 
       {tracking ? (

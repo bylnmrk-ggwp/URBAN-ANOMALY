@@ -75,6 +75,8 @@ function sharedParams(order: Order, settings: StoreSettings): Record<string, str
     order_status: ORDER_STATUS_LABELS[order.status],
     payment_method: PAYMENT_METHOD_LABELS[order.paymentMethod],
     payment_status: PAYMENT_STATUS_LABELS[order.paymentStatus],
+    // GCash reference typed by the buyer; empty for every other method.
+    payment_reference: order.paymentReference ?? '',
     customer_name: order.customer.fullName,
     customer_email: order.customer.email,
     customer_phone: order.customer.phone,

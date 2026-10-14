@@ -124,6 +124,7 @@ flags unless that GUC is set.
 | `cancel_my_order(p_order_id)`                           | buyer (owner)       | Only while `pending_payment` / `pending_confirmation`; releases reservations, sets `refund_pending` if already paid, notifies admins.                                                                                                                                                                                                                                                           |
 | `update_order_status(p_order_id, p_status, p_note)`     | admin               | Enforces `ORDER_STATUS_TRANSITIONS`; `shipped` fulfils stock and bumps `sales_count`; `cancelled` releases reservations; `pending_payment -> pending_confirmation` is reserved for the webhook.                                                                                                                                                                                                 |
 | `mark_cod_payment_collected(p_order_id)`                | admin               | COD + `unpaid` only.                                                                                                                                                                                                                                                                                                                                                                            |
+| `mark_gcash_payment_verified(p_order_id)`               | admin               | GCash + `pending` only (0005). Sets `paid`, appends a history event with the reference, raises `payment_confirmed`. See section 12.                                                                                                                                                                                                                                                             |
 | `adjust_stock(p_variant_id, p_delta, p_reason, p_note)` | admin               | Manual reasons only; refuses to drop below reserved units; writes a movement; low-stock notification.                                                                                                                                                                                                                                                                                           |
 | `save_product(p_product_id, p_payload) -> uuid`         | admin               | Transactional product + images + variants upsert; stock changes recorded as `correction`/`restock` movements; refuses to delete variants with order history.                                                                                                                                                                                                                                    |
 | `dashboard_summary(p_days) -> jsonb`                    | admin               | KPIs, daily series, recent orders, best sellers, low stock, activity.                                                                                                                                                                                                                                                                                                                           |
@@ -304,3 +305,45 @@ ends_at, is_active, created_at)` with a public `validate_discount(code, subtotal
   admin CRUD via RLS (`is_owner()`).
 - Team management: `SupabaseTeamRepository` throws the same way. Invites need an Edge Function
   (service role) to create the auth user and set `profiles.admin_role`.
+
+## 12. GCash QR payments (`supabase/migrations/0005_gcash.sql`)
+
+A manual prepaid method that needs no payment provider: the owner shows their GCash QR, the
+buyer pays from the GCash app and types the reference number, and an admin verifies it. Apply
+`0005_gcash.sql` after `0004_order_emails.sql`, then regenerate types (section 3).
+
+### Schema
+
+| Object                                                                              | Change                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| enum `payment_method`                                                               | `+ 'gcash'` (added first in the file; nothing else in the migration _uses_ the value, only function bodies mention it, so it is safe in one transaction).                         |
+| `orders.payment_reference text`                                                     | The reference the buyer typed; `null` for COD / online.                                                                                                                           |
+| `store_settings.gcash_enabled boolean default false`                                | Owner toggle (Settings → GCash).                                                                                                                                                  |
+| `store_settings.gcash_account_name text default ''`, `gcash_number text default ''` | Shown next to the QR at checkout. The client validates `^09\d{9}$` for the number while enabled.                                                                                  |
+| `store_settings.gcash_qr_url text`                                                  | Public URL of the QR image. Uploaded through the shared `ImageUploadField`, i.e. into the **`cms-media`** bucket (`uploads/<yyyy>/<uuid>.<ext>`), no new bucket.                  |
+| view `order_summaries`                                                              | `payment_reference` appended as the last column.                                                                                                                                  |
+| `place_order`                                                                       | Re-created: accepts `payment_reference`, rejects GCash when disabled / no QR / bad reference (`VA001`), stores it, and starts GCash orders in `pending_confirmation` + `pending`. |
+| `update_order_status`                                                               | Re-created: `confirmed` now also requires `paid` for `gcash` (same rule as `online`).                                                                                             |
+| `mark_gcash_payment_verified(p_order_id)`                                           | New admin RPC, see section 6.                                                                                                                                                     |
+
+`order_json(uuid)` is built with `to_jsonb(o)`, so `place_order`'s returned order and `track_order`
+pick up `payment_reference` without changes. `database.types.ts` and the mappers treat the new
+columns as optional so a project still on 0004 keeps type-checking and reads GCash as "off".
+
+### Flow
+
+1. Owner (permission `settings.edit`) opens `/admin/settings` → **GCash**, turns it on, enters the
+   account name and 11-digit number, uploads the QR. Checkout offers GCash only when
+   `gcash_enabled` **and** `gcash_qr_url` are set.
+2. Buyer picks GCash, sees the QR (`alt="GCash QR code"`), the copyable account name / number and
+   the amount, pays in the app and enters the 8–20 character reference. `place_order` validates
+   the same pattern server-side.
+3. The order lands in `pending_confirmation` / `pending`. Admin opens it, finds the reference in
+   the GCash app, and clicks **Mark as paid** (Payment card) → `mark_gcash_payment_verified`
+   → `paid`. Only then does **Confirm Order** appear. Cancelling before verification sets
+   `failed`; after verification `refund_pending`, exactly like online orders.
+4. Both EmailJS templates receive `payment_reference` (empty when not GCash).
+
+Settings edits stay behind the existing `store_settings_update` policy (`is_admin()`); the UI
+hides the page from staff via `settings.edit`. Tightening the policy to `is_owner()` is the same
+follow-up as for the other owner-only settings (section 11).
