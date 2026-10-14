@@ -1,0 +1,4 @@
+# Files read raw by tests must stay LF on every checkout (core.autocrlf on Windows
+# would otherwise rewrite them and break the regexes in seedParity/seasons tests).
+*.sql text eol=lf
+*.css text eol=lf
