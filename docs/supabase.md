@@ -396,7 +396,6 @@ through account settings.'` when `email` changes and the caller is neither an ad
 
 ### Storage: `review-photos`
 
-
 ## 13. GCash QR payments (`supabase/migrations/0005_gcash.sql`)
 
 A manual prepaid method that needs no payment provider: the owner shows their GCash QR, the
