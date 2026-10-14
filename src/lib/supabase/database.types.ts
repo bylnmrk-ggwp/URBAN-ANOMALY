@@ -969,6 +969,11 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: undefined
       }
+      /** 0004_order_emails.sql */
+      record_order_update_notification: {
+        Args: { p_order_id: string; p_emailed: boolean }
+        Returns: undefined
+      }
       cancel_my_order: {
         Args: { p_order_id: string }
         Returns: undefined
@@ -1086,7 +1091,13 @@ export type Database = {
         | 'order_reserved'
         | 'order_released'
         | 'order_fulfilled'
-      notification_type: 'new_order' | 'payment_confirmed' | 'low_stock' | 'order_issue'
+      notification_type:
+        | 'new_order'
+        | 'payment_confirmed'
+        | 'low_stock'
+        | 'order_issue'
+        /** 0004_order_emails.sql */
+        | 'order_update'
       cms_document_kind: 'page' | 'navigation' | 'theme' | 'announcement'
       cms_audit_action:
         | 'save_draft'

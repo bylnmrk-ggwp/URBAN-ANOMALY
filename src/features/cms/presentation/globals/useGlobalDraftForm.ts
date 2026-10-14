@@ -32,11 +32,17 @@ export interface GlobalDraftForm<K extends GlobalKind> {
  */
 export function useGlobalDraftForm<K extends GlobalKind>(
   doc: DraftDocumentState<K>,
-  schema: z.ZodType<ContentFor<K>, ContentFor<K>>,
+  /** Typed by its output only: a schema may take looser input, e.g. a defaulted field. */
+  schema: z.ZodType<ContentFor<K>>,
   initial: ContentFor<K>,
 ): GlobalDraftForm<K> {
   const form = useForm<ContentFor<K>>({
-    resolver: zodResolver(schema),
+    /**
+     * The resolver insists its input type equals the form values. A schema with a defaulted
+     * field (theme's `season`) accepts a superset of them, which is only ever safer, and the
+     * form always hands it complete values.
+     */
+    resolver: zodResolver(schema as z.ZodType<ContentFor<K>, ContentFor<K>>),
     defaultValues: initial as DefaultValues<ContentFor<K>>,
     mode: 'onBlur',
   })

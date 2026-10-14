@@ -1,5 +1,5 @@
 import type { AnnouncementContent, NavigationContent } from '../navigation'
-import type { ThemeContent } from '../theme'
+import { seasonColors, THEME_SHAPE_DEFAULT, type ThemeContent } from '../theme'
 
 export const NAVIGATION_DEFAULT: NavigationContent = {
   primaryLinks: [
@@ -41,19 +41,12 @@ export const ANNOUNCEMENT_DEFAULT: AnnouncementContent = {
   visible: true,
 }
 
-/** Mirrors the :root tokens in src/styles/globals.css. */
+/**
+ * Mirrors the :root tokens in src/styles/globals.css, by way of the `default` season — the
+ * season table in domain/seasons.ts is the single source for a season's palette.
+ */
 export const THEME_DEFAULT: ThemeContent = {
-  colors: {
-    primary: '#5c7454',
-    primaryForeground: '#ffffff',
-    background: '#ffffff',
-    foreground: '#0f120e',
-    muted: '#f1f3ef',
-    mutedForeground: '#5a6356',
-    border: '#dde2d8',
-  },
-  fontFamily: 'Inter',
-  radius: 'md',
-  buttonStyle: 'rounded',
-  sectionSpacing: 'default',
+  season: 'default',
+  colors: seasonColors('default'),
+  ...THEME_SHAPE_DEFAULT,
 }

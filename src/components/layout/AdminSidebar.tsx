@@ -72,7 +72,7 @@ export function AdminSidebar({ collapsed, onNavigate }: AdminSidebarProps) {
           {collapsed ? (
             <BrandMark />
           ) : (
-            <BrandWordmark alt={BRAND_NAME} className="h-5 min-w-0 sm:h-5" />
+            <BrandWordmark alt={BRAND_NAME} compact className="min-w-0" />
           )}
         </Link>
         {collapsed ? null : (

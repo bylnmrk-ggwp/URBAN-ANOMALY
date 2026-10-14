@@ -10,7 +10,11 @@
   --button-radius: var(--radius);
   --section-scale: 1;
   /* Brand palette: the two colours on the logo sheet, olive #5c7454 and black.
-     Neutrals carry a faint green cast so greys sit beside the mark without clashing. */
+     Neutrals carry a faint green cast so greys sit beside the mark without clashing.
+     This block and .dark below are the `default` season. The seasonal variants (camo,
+     christmas) live in features/cms/domain/seasons.ts and are applied at runtime by
+     ThemeApplier; seasons.test.ts fails if that table and these two blocks drift.
+     The --brand-olive-* ramp is the default season's; seasons carry their own --brand-ink. */
   --brand-olive: #5c7454;
   --brand-olive-dark: #44593c;
   --brand-olive-soft: #8fa686;

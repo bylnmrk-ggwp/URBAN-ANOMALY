@@ -8,6 +8,7 @@ import type {
   PlaceOrderResult,
 } from '@/features/orders/domain/entities'
 import type { OrderRepository } from '@/features/orders/domain/repository'
+import type { StoreSettings } from '@/features/settings/domain/entities'
 import { AppError } from '@/lib/errors'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import type { Json } from '@/lib/supabase/database.types'
@@ -17,10 +18,13 @@ import {
   placeOrderResultSchema,
   toOrderFromJoin,
   toOrderSummary,
+  toSettings,
   unwrap,
 } from '@/lib/supabase/mappers'
 import type { OrderJoinRow } from '@/lib/supabase/mappers'
 import type { PaginatedResult } from '@/types/common'
+
+import { OrderEmailGateway } from './orderEmails'
 
 const ORDER_SELECT = '*, order_items(*), order_status_events(*)'
 const DEFAULT_PAGE_SIZE = 20
@@ -56,6 +60,14 @@ function sanitizeSearch(term: string): string {
 }
 
 export class SupabaseOrderRepository implements OrderRepository {
+  private readonly emails: OrderEmailGateway
+  /** Store settings drive the notification toggles; read at most once per page load. */
+  private settingsPromise: Promise<StoreSettings> | null = null
+
+  constructor(emails: OrderEmailGateway = new OrderEmailGateway()) {
+    this.emails = emails
+  }
+
   private get db() {
     return getSupabaseClient()
   }
@@ -88,10 +100,12 @@ export class SupabaseOrderRepository implements OrderRepository {
     const data = unwrap(await this.db.rpc('place_order', { payload }))
     const result = parseRpcJson(placeOrderResultSchema, data, 'place_order')
     if (result.order.user_id === null) rememberGuestOrder(result.order)
-    return {
-      order: toOrderFromJoin(result.order),
-      paymentRedirectUrl: result.payment_redirect_url,
-    }
+    const order = toOrderFromJoin(result.order)
+    // `place_order` already inserted the in-app admin notification; the email is
+    // best effort and never fails the checkout.
+    const settings = await this.loadSettings()
+    if (settings) await this.emails.sendNewOrderAlert(order, settings)
+    return { order, paymentRedirectUrl: result.payment_redirect_url }
   }
 
   async getOrderByNumber(orderNumber: string): Promise<Order | null> {
@@ -194,7 +208,9 @@ export class SupabaseOrderRepository implements OrderRepository {
         p_note: note ?? '',
       }),
     )
-    return this.requireOrder(id)
+    const order = await this.requireOrder(id)
+    await this.emailOrderUpdate(order)
+    return order
   }
 
   async setTracking(id: string, tracking: OrderTracking): Promise<Order> {
@@ -218,6 +234,45 @@ export class SupabaseOrderRepository implements OrderRepository {
   }
 
   // ---------------------------------------------------------------------------
+
+  /**
+   * `store_settings` is world-readable (see `0001_schema.sql`), so this works for
+   * guest checkouts too. Returns null rather than throwing: the caller's order
+   * has already been written and must not fail over a notification lookup.
+   */
+  private async loadSettings(): Promise<StoreSettings | null> {
+    this.settingsPromise ??= (async () =>
+      toSettings(unwrap(await this.db.from('store_settings').select('*').eq('id', 1).single())))()
+    try {
+      return await this.settingsPromise
+    } catch {
+      this.settingsPromise = null
+      return null
+    }
+  }
+
+  /**
+   * Flow 2: emails the customer, then records the outcome as an in-app
+   * notification. The insert goes through `record_order_update_notification`
+   * because `notifications` has no client insert policy.
+   */
+  private async emailOrderUpdate(order: Order): Promise<void> {
+    const settings = await this.loadSettings()
+    if (!settings) return
+    const result = await this.emails.sendOrderUpdate(order, settings, {
+      paymentConfirmed: order.status === 'pending_confirmation' && order.paymentStatus === 'paid',
+    })
+    try {
+      unwrap(
+        await this.db.rpc('record_order_update_notification', {
+          p_order_id: order.id,
+          p_emailed: result.status === 'sent',
+        }),
+      )
+    } catch {
+      // The status change itself succeeded; the audit notification is best effort.
+    }
+  }
 
   private async fetchOrder(id: string): Promise<Order | null> {
     const result = await this.db

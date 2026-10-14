@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   test: {
+    env: { VITE_DATA_MODE: 'mock' },
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],

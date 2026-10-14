@@ -1,9 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { SEASON_ARTWORK } from '@/components/layout/brandArtwork'
 import { repositories } from '@/config/repositories'
 import { THEME_DEFAULT } from '@/features/cms/domain/defaults'
 import { GLOBAL_KEYS } from '@/features/cms/domain/documents'
-import { renderWithProviders, resetMockSession, screen, signInAs, waitFor } from '@/tests/render'
+import { seasonColors, THEME_SEASON_DEFINITIONS } from '@/features/cms/domain/theme'
+import {
+  renderWithProviders,
+  resetMockSession,
+  screen,
+  signInAs,
+  waitFor,
+  within,
+} from '@/tests/render'
 
 import ThemePage from './ThemePage'
 
@@ -64,6 +73,43 @@ describe('ThemePage (admin)', () => {
       expect(doc?.draft.colors.primary).toBe('#00aa00')
     })
     await waitFor(() => expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument())
+  })
+
+  it('picking a season swaps the logo and the palette, and publishes both', async () => {
+    const { user } = renderPage()
+    const preview = await screen.findByTestId('theme-preview')
+
+    await user.click(screen.getByRole('radio', { name: 'Christmas' }))
+
+    const christmas = seasonColors('christmas')
+    await waitFor(() => expect(preview.style.getPropertyValue('--primary')).toBe(christmas.primary))
+    expect(preview.style.getPropertyValue('--background')).toBe(christmas.background)
+    expect(preview.style.getPropertyValue('--accent-foreground')).toBe(
+      THEME_SEASON_DEFINITIONS.christmas.light['--accent-foreground'],
+    )
+    // The colour fields follow the season, so the merchant can still hand-edit from there.
+    expect(screen.getByLabelText('Primary')).toHaveValue(christmas.primary)
+    // The preview shows the season's artwork; every option keeps showing its own.
+    expect(preview.querySelector('img')?.getAttribute('src')).toBe(
+      SEASON_ARTWORK.christmas.wordmark.src,
+    )
+    for (const season of ['default', 'camo', 'christmas'] as const) {
+      expect(
+        document.querySelectorAll(`img[src="${SEASON_ARTWORK[season].wordmark.src}"]`).length,
+      ).toBeGreaterThan(0)
+    }
+
+    const [publish] = await screen.findAllByRole('button', { name: 'Publish' })
+    await waitFor(() => expect(publish).toBeEnabled())
+    await user.click(publish as HTMLElement)
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Publish' }))
+
+    await waitFor(async () => {
+      const doc = await repositories.cms.getDocument('theme', GLOBAL_KEYS.theme)
+      expect(doc?.published?.season).toBe('christmas')
+      expect(doc?.published?.colors.primary).toBe(christmas.primary)
+    })
   })
 
   it('rejects an invalid hex value and keeps the save button disabled', async () => {

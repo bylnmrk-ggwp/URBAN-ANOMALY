@@ -1,10 +1,26 @@
 import { z } from 'zod'
 
 import { hexColorSchema } from './common'
+import { seasonColors, THEME_SEASONS, type ThemeSeason } from './seasons'
+
+export {
+  seasonColors,
+  seasonCssText,
+  seasonCssVariables,
+  seasonSwatches,
+  THEME_SEASON_DEFINITIONS,
+  THEME_SEASONS,
+  type ThemeSeason,
+} from './seasons'
 
 export const THEME_FONTS = ['Inter', 'Geist', 'DM Sans', 'Manrope'] as const
 
 export const themeContentSchema = z.object({
+  /**
+   * Seasonal brand variant: logo artwork plus palette (see ./seasons.ts). Defaulted, so a
+   * theme document stored before seasons existed still parses.
+   */
+  season: z.enum(THEME_SEASONS).default('default'),
   colors: z.object({
     primary: hexColorSchema,
     primaryForeground: hexColorSchema,
@@ -69,8 +85,35 @@ export function themeToCssVariables(theme: ThemeContent): Record<string, string>
   }
 }
 
+/** The type and shape tokens globals.css declares, i.e. the values that need no override. */
+export const THEME_SHAPE_DEFAULT = {
+  fontFamily: 'Inter',
+  radius: 'md',
+  buttonStyle: 'rounded',
+  sectionSpacing: 'default',
+} as const satisfies Omit<ThemeContent, 'season' | 'colors'>
+
+/** What a season looks like untouched: its palette on the shipped type and shape tokens. */
+export function seasonBaselineTheme(season: ThemeSeason): ThemeContent {
+  return { season, colors: seasonColors(season), ...THEME_SHAPE_DEFAULT }
+}
+
+/**
+ * The subset of `themeToCssVariables` that differs from the season's untouched baseline. A
+ * theme left on its season's palette and the shipped shape tokens yields `{}`, so
+ * `ThemeApplier` writes no inline styles and the stylesheet (and with it dark mode) stays in
+ * charge. Hand-edited values are written exactly as before.
+ */
+export function themeCssOverrides(theme: ThemeContent): Record<string, string> {
+  const baseline = themeToCssVariables(seasonBaselineTheme(theme.season))
+  return Object.fromEntries(
+    Object.entries(themeToCssVariables(theme)).filter(([key, value]) => baseline[key] !== value),
+  )
+}
+
 export const THEME_CSS_KEYS = Object.keys(
   themeToCssVariables({
+    season: 'default',
     colors: {
       primary: '#000000',
       primaryForeground: '#ffffff',
@@ -80,9 +123,6 @@ export const THEME_CSS_KEYS = Object.keys(
       mutedForeground: '#000000',
       border: '#000000',
     },
-    fontFamily: 'Inter',
-    radius: 'md',
-    buttonStyle: 'rounded',
-    sectionSpacing: 'default',
+    ...THEME_SHAPE_DEFAULT,
   }),
 )

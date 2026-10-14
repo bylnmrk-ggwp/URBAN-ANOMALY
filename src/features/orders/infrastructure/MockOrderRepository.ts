@@ -34,15 +34,18 @@ import {
   initialPaymentStatusFor,
   initialStatusFor,
 } from '../domain/rules'
+import { OrderEmailGateway, describeOrderUpdateNotification } from './orderEmails'
 
 const ADMIN_PAGE_SIZE = 20
 const OUT_OF_STOCK_MESSAGE = 'Some items are no longer available in the requested quantity.'
 
 export class MockOrderRepository implements OrderRepository {
   private readonly store: MockStore
+  private readonly emails: OrderEmailGateway
 
-  constructor(store: MockStore) {
+  constructor(store: MockStore, emails: OrderEmailGateway = new OrderEmailGateway()) {
     this.store = store
+    this.emails = emails
   }
 
   async placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
@@ -151,6 +154,9 @@ export class MockOrderRepository implements OrderRepository {
       )}.`,
       href: `/admin/orders/${order.id}`,
     })
+    // Best effort: the order is already saved, so an email problem must not
+    // surface as a failed checkout.
+    await this.emails.sendNewOrderAlert(order, this.store.settings)
 
     return {
       order: clone(order),
@@ -271,7 +277,8 @@ export class MockOrderRepository implements OrderRepository {
       )
     }
 
-    if (status === 'pending_confirmation' && order.paymentMethod === 'online') {
+    const paymentConfirmed = status === 'pending_confirmation' && order.paymentMethod === 'online'
+    if (paymentConfirmed) {
       // Stands in for the payment webhook in mock mode.
       order.paymentStatus = 'paid'
       this.store.pushNotification({
@@ -286,6 +293,18 @@ export class MockOrderRepository implements OrderRepository {
     // `delivered` leaves paymentStatus untouched: COD cash collection is recorded separately.
 
     this.appendHistory(order, status, note?.trim() || null, 'admin')
+
+    // Tell the customer, then record the outcome of that mail in-app so staff
+    // can see it happened (or why it did not).
+    const emailResult = await this.emails.sendOrderUpdate(order, this.store.settings, {
+      paymentConfirmed,
+    })
+    this.store.pushNotification({
+      type: 'order_update',
+      ...describeOrderUpdateNotification(order, emailResult),
+      href: `/admin/orders/${order.id}`,
+    })
+
     return clone(order)
   }
 

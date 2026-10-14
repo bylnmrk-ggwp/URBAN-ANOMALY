@@ -6,6 +6,8 @@ import type { CartItem, ResolvedCartLine } from '@/features/cart/domain/entities
 import type { Order, OrderSummary } from '@/features/orders/domain/entities'
 import type { Product, ProductVariant } from '@/features/products/domain/entities'
 import { availableStock, getDisplayPrice } from '@/features/products/domain/rules'
+import type { EmailClient, EmailMessage, EmailSendResult, EmailSkipReason } from '@/lib/email/types'
+import { emailSkipped } from '@/lib/email/types'
 import { SEED_ORDERS } from '@/mocks/data/orders'
 import { SEED_PRODUCTS, variantId } from '@/mocks/data/products'
 import { clone, toOrderSummary } from '@/mocks/helpers'
@@ -93,5 +95,39 @@ export function makeResolvedLine(
     availableStock: availableStock(variant),
     issue: null,
     ...overrides,
+  }
+}
+
+export interface FakeEmailClient extends EmailClient {
+  /** Every message handed to {@link EmailClient.send}, in order. */
+  readonly sent: EmailMessage[]
+}
+
+/**
+ * In-memory {@link EmailClient}. Records what the app tried to send and never
+ * touches the network, so order-email behaviour can be asserted directly.
+ *
+ * `outcome` decides what every send reports: `'sent'` (default), `'failed'`, or
+ * a skip reason such as `'not_configured'` for the unconfigured path.
+ */
+export function makeFakeEmailClient(
+  outcome: 'sent' | 'failed' | EmailSkipReason = 'sent',
+): FakeEmailClient {
+  const sent: EmailMessage[] = []
+  return {
+    sent,
+    isConfigured: outcome !== 'not_configured',
+    send(message: EmailMessage): Promise<EmailSendResult> {
+      sent.push(message)
+      if (outcome === 'sent') return Promise.resolve({ status: 'sent', template: message.template })
+      if (outcome === 'failed') {
+        return Promise.resolve({
+          status: 'failed',
+          template: message.template,
+          error: 'Fake transport failure.',
+        })
+      }
+      return Promise.resolve(emailSkipped(message.template, outcome))
+    },
   }
 }

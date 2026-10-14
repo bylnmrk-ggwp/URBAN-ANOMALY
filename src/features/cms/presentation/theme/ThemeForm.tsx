@@ -12,9 +12,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-import { THEME_DEFAULT } from '../../domain/defaults'
-import { THEME_FONTS, type ThemeContent } from '../../domain/theme'
+import { seasonBaselineTheme, THEME_FONTS, type ThemeContent } from '../../domain/theme'
 import { ColorField, type ColorName } from './ColorField'
+import { SeasonField } from './SeasonField'
 import { SegmentedField } from './SegmentedField'
 
 const COLOR_FIELDS: ReadonlyArray<{ name: ColorName; label: string }> = [
@@ -28,21 +28,34 @@ const COLOR_FIELDS: ReadonlyArray<{ name: ColorName; label: string }> = [
 ]
 
 export function ThemeForm({ form }: { form: UseFormReturn<ThemeContent> }) {
+  const season = form.watch('season')
   return (
     <>
+      <Card className="gap-4 rounded-lg shadow-none">
+        <CardHeader>
+          <CardTitle className="text-base">Season</CardTitle>
+          <CardDescription>
+            The brand ships seasonal logo cuts. Each one brings its own palette.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SeasonField form={form} />
+        </CardContent>
+      </Card>
+
       <Card className="gap-4 rounded-lg shadow-none">
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div className="space-y-1.5">
             <CardTitle className="text-base">Colours</CardTitle>
             <CardDescription>
-              Six-digit hex values. Keep text and background contrast high.
+              Six-digit hex values, seeded by the season. Keep text and background contrast high.
             </CardDescription>
           </div>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => form.reset(THEME_DEFAULT, { keepDefaultValues: true })}
+            onClick={() => form.reset(seasonBaselineTheme(season), { keepDefaultValues: true })}
           >
             <RotateCcw aria-hidden="true" />
             Reset to defaults

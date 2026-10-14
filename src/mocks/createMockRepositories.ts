@@ -9,22 +9,32 @@ import { MockDiscountRepository } from '@/features/discounts/infrastructure/Mock
 import { MockInventoryRepository } from '@/features/inventory/infrastructure/MockInventoryRepository'
 import { MockNotificationRepository } from '@/features/notifications/infrastructure/MockNotificationRepository'
 import { MockOrderRepository } from '@/features/orders/infrastructure/MockOrderRepository'
+import { OrderEmailGateway } from '@/features/orders/infrastructure/orderEmails'
 import { MockProductRepository } from '@/features/products/infrastructure/MockProductRepository'
 import { MockReturnRepository } from '@/features/returns/infrastructure/MockReturnRepository'
 import { MockReviewRepository } from '@/features/reviews/infrastructure/MockReviewRepository'
 import { MockSettingsRepository } from '@/features/settings/infrastructure/MockSettingsRepository'
 import { MockStockAlertRepository } from '@/features/stock-alerts/infrastructure/MockStockAlertRepository'
 import { MockTeamRepository } from '@/features/team/infrastructure/MockTeamRepository'
+import type { EmailClient } from '@/lib/email/types'
 
 import { MockStore } from './MockStore'
 
-function buildRepositories(store: MockStore): Repositories {
+export interface MockRepositoryOptions {
+  /**
+   * Email client used for order notifications. Defaults to the app-wide one,
+   * which is a no-op unless EmailJS is configured; tests pass a fake.
+   */
+  emailClient?: EmailClient
+}
+
+function buildRepositories(store: MockStore, options: MockRepositoryOptions = {}): Repositories {
   return {
     // Auth first: it rehydrates the persisted session the other repositories read.
     auth: new MockAuthRepository(store),
     products: new MockProductRepository(store),
     categories: new MockCategoryRepository(store),
-    orders: new MockOrderRepository(store),
+    orders: new MockOrderRepository(store, new OrderEmailGateway(options.emailClient)),
     inventory: new MockInventoryRepository(store),
     customers: new MockCustomerRepository(store),
     notifications: new MockNotificationRepository(store),
@@ -46,7 +56,10 @@ export function createMockRepositories(): Repositories {
 }
 
 /** Fresh store per call so tests can inspect and mutate state directly. */
-export function createMockRepositoriesForTest(): { repositories: Repositories; store: MockStore } {
+export function createMockRepositoriesForTest(options: MockRepositoryOptions = {}): {
+  repositories: Repositories
+  store: MockStore
+} {
   const store = new MockStore()
-  return { repositories: buildRepositories(store), store }
+  return { repositories: buildRepositories(store, options), store }
 }

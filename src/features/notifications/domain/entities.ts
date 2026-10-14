@@ -1,6 +1,12 @@
 import type { ISODateString } from '@/types/common'
 
-export type NotificationType = 'new_order' | 'payment_confirmed' | 'low_stock' | 'order_issue'
+export type NotificationType =
+  | 'new_order'
+  | 'payment_confirmed'
+  | 'low_stock'
+  | 'order_issue'
+  /** An admin acted on an order; records whether the customer email went out. */
+  | 'order_update'
 
 export interface AppNotification {
   id: string

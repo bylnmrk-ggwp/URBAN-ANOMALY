@@ -1,34 +1,55 @@
+import type { ThemeSeason } from '@/features/cms/domain/theme'
 import { cn } from '@/lib/utils'
 
-/**
- * Brand artwork, served from public/ so it stays out of the JS bundle.
- * `BrandMark` is the UA symbol; `BrandWordmark` is the horizontal "Urban Anomaly" script.
- * Both are raster crops of the logo sheet — swap in the vector exports when they land.
- */
-export const BRAND_MARK_SRC = '/logo-symbol.png'
-export const BRAND_WORDMARK_SRC = '/logo-long.png'
+import { SEASON_ARTWORK, useBrandSeason } from './brandArtwork'
 
-export function BrandMark({ className }: { className?: string }) {
+/**
+ * `BrandMark` is the compact brand mark; `BrandWordmark` is the wide lockup beside navigation.
+ * Both follow the published theme's season (see features/cms/domain/seasons.ts) and take a
+ * `season` prop so the admin can preview a variant before publishing. The artwork table lives
+ * in ./brandArtwork.ts.
+ */
+interface BrandArtProps {
+  className?: string
+  /** Overrides the published season (used by the admin theme preview). */
+  season?: ThemeSeason
+}
+
+export function BrandMark({ className, season }: BrandArtProps) {
+  const published = useBrandSeason()
+  const logos = SEASON_ARTWORK[season ?? published]
   return (
     <img
-      src={BRAND_MARK_SRC}
+      src={logos.mark.src}
       alt=""
       aria-hidden="true"
-      width={154}
-      height={80}
-      className={cn('h-7 w-auto shrink-0 dark:brightness-175', className)}
+      width={logos.mark.width}
+      height={logos.mark.height}
+      className={cn('w-auto shrink-0', logos.markClass, className)}
     />
   )
 }
 
-export function BrandWordmark({ alt, className }: { alt: string; className?: string }) {
+interface BrandWordmarkProps extends BrandArtProps {
+  alt: string
+  /** Smaller box for narrow slots. */
+  compact?: boolean
+}
+
+export function BrandWordmark({ alt, className, season, compact }: BrandWordmarkProps) {
+  const published = useBrandSeason()
+  const logos = SEASON_ARTWORK[season ?? published]
   return (
     <img
-      src={BRAND_WORDMARK_SRC}
+      src={logos.wordmark.src}
       alt={alt}
-      width={445}
-      height={59}
-      className={cn('h-6 w-auto shrink-0 sm:h-7 dark:brightness-175', className)}
+      width={logos.wordmark.width}
+      height={logos.wordmark.height}
+      className={cn(
+        'w-auto shrink-0',
+        compact ? logos.wordmarkCompactClass : logos.wordmarkClass,
+        className,
+      )}
     />
   )
 }

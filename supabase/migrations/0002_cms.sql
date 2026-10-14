@@ -948,6 +948,7 @@ insert into public.cms_documents (key, kind, title, draft, published, draft_vers
 select 'global:theme', 'theme', 'Theme', c, c, 1, 1, 'Store Admin', now()
 from (select $json$
 {
+  "season": "default",
   "colors": {
     "primary": "#5c7454",
     "primaryForeground": "#ffffff",

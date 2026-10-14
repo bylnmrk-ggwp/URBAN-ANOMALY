@@ -1,4 +1,11 @@
-import { CircleAlert, CircleCheck, ShoppingBag, TriangleAlert, type LucideIcon } from 'lucide-react'
+import {
+  CircleAlert,
+  CircleCheck,
+  Mail,
+  ShoppingBag,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react'
 
 import type { AppNotification, NotificationType } from '@/features/notifications/domain/entities'
 import { formatRelative } from '@/lib/format'
@@ -9,6 +16,7 @@ const typeIcons: Record<NotificationType, LucideIcon> = {
   payment_confirmed: CircleCheck,
   low_stock: TriangleAlert,
   order_issue: CircleAlert,
+  order_update: Mail,
 }
 
 const typeTone: Record<NotificationType, string> = {
@@ -16,6 +24,7 @@ const typeTone: Record<NotificationType, string> = {
   payment_confirmed: 'text-success',
   low_stock: 'text-warning',
   order_issue: 'text-destructive',
+  order_update: 'text-info',
 }
 
 interface NotificationItemProps {
