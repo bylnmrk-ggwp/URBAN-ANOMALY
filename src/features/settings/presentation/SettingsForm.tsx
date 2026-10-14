@@ -68,8 +68,8 @@ export function SettingsForm({ settings }: SettingsFormProps) {
     <Form {...form}>
       <UnsavedChangesGuard shouldBlock={() => form.formState.isDirty} />
       <form onSubmit={handleSubmit} noValidate className="space-y-6 pb-20 lg:pb-0">
-        <div className="grid min-w-0 gap-6 lg:grid-cols-3">
-          <div className="min-w-0 space-y-6 lg:col-span-2">
+        <div className="grid min-w-0 gap-6 xl:grid-cols-3">
+          <div className="min-w-0 space-y-6 xl:col-span-2">
             <StoreSection form={form} />
             <ShippingSection form={form} />
             <PaymentsSection form={form} settings={settings} />

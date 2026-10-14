@@ -75,7 +75,7 @@ export function InventoryTable({
       key: 'sku',
       header: 'SKU',
       cell: (r) => <span className="font-mono text-xs">{r.sku}</span>,
-      hideBelow: 'lg',
+      hideBelow: 'xl',
     },
     { key: 'size', header: 'Size', cell: (r) => r.size },
     {
@@ -89,14 +89,14 @@ export function InventoryTable({
       header: 'Physical',
       align: 'right',
       cell: (r) => <span className="tabular-nums">{r.physicalStock}</span>,
-      hideBelow: 'lg',
+      hideBelow: 'xl',
     },
     {
       key: 'reserved',
       header: 'Reserved',
       align: 'right',
       cell: (r) => <span className="text-muted-foreground tabular-nums">{r.reservedStock}</span>,
-      hideBelow: 'lg',
+      hideBelow: 'xl',
     },
     {
       key: 'available',
@@ -111,7 +111,7 @@ export function InventoryTable({
       cell: (r) => (
         <span className="text-muted-foreground tabular-nums">{r.lowStockThreshold}</span>
       ),
-      hideBelow: 'lg',
+      hideBelow: 'xl',
     },
     { key: 'status', header: 'Status', cell: (r) => <StockStatusBadge status={r.status} /> },
     {

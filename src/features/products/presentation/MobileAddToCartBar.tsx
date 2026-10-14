@@ -11,14 +11,20 @@ interface MobileAddToCartBarProps {
   onAddToCart: () => void
 }
 
-/** Sticky purchase bar for small screens. Offset by `--mobile-nav-height` when the shell sets it. */
+/**
+ * Sticky purchase bar for small screens. Offset by `--mobile-nav-height` when the shell sets it.
+ * `StorefrontLayout` pads the shell by the bar's height while it is mounted (via `data-slot`).
+ */
 export function MobileAddToCartBar({
   product,
   canAddToCart,
   onAddToCart,
 }: MobileAddToCartBarProps) {
   return (
-    <div className="bg-background/95 fixed inset-x-0 bottom-[var(--mobile-nav-height,0px)] z-30 border-t backdrop-blur lg:hidden">
+    <div
+      data-slot="mobile-add-to-cart-bar"
+      className="bg-background/95 fixed inset-x-0 bottom-[var(--mobile-nav-height,0px)] z-30 border-t backdrop-blur lg:hidden"
+    >
       <div className="container-x flex items-center justify-between gap-4 py-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{product.name}</p>

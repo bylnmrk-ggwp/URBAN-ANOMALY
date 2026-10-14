@@ -25,7 +25,7 @@ export function BrandMark({ className, season }: BrandArtProps) {
       aria-hidden="true"
       width={logos.mark.width}
       height={logos.mark.height}
-      className={cn('w-auto shrink-0', logos.markClass, className)}
+      className={cn('h-auto w-auto shrink-0', logos.markClass, className)}
     />
   )
 }
@@ -46,7 +46,7 @@ export function BrandWordmark({ alt, className, season, compact }: BrandWordmark
       width={logos.wordmark.width}
       height={logos.wordmark.height}
       className={cn(
-        'w-auto shrink-0',
+        'h-auto w-auto shrink-0',
         compact ? logos.wordmarkCompactClass : logos.wordmarkClass,
         className,
       )}

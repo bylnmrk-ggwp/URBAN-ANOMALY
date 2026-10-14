@@ -22,7 +22,11 @@ export interface SeasonLogos {
   mark: BrandArt
   /** Wide slot: the storefront header and the expanded admin sidebar. */
   wordmark: BrandArt
-  /** Height, plus any ink correction; width always follows the aspect ratio. */
+  /**
+   * Maximum height, plus any ink correction; width always follows the aspect ratio. A max rather
+   * than a fixed height so a slot narrower than the artwork (preflight `max-width: 100%`) scales
+   * it down instead of squashing it.
+   */
   markClass: string
   wordmarkClass: string
   /** Wordmark in a tight slot — the 16rem admin sidebar header. */
@@ -33,23 +37,23 @@ export const SEASON_ARTWORK: Record<ThemeSeason, SeasonLogos> = {
   default: {
     mark: { src: '/logo-symbol.png', width: 154, height: 80 },
     wordmark: { src: '/logo-long.png', width: 445, height: 59 },
-    markClass: 'h-7 dark:brightness-175',
-    wordmarkClass: 'h-6 sm:h-7 dark:brightness-175',
-    wordmarkCompactClass: 'h-5 dark:brightness-175',
+    markClass: 'max-h-7 dark:brightness-175',
+    wordmarkClass: 'max-h-6 sm:max-h-7 dark:brightness-175',
+    wordmarkCompactClass: 'max-h-5 dark:brightness-175',
   },
   camo: {
     mark: { src: '/logo-camo.png', width: 235, height: 138 },
     wordmark: { src: '/logo-camo.png', width: 235, height: 138 },
-    markClass: 'h-7',
-    wordmarkClass: 'h-9 sm:h-10',
-    wordmarkCompactClass: 'h-8',
+    markClass: 'max-h-7',
+    wordmarkClass: 'max-h-9 sm:max-h-10',
+    wordmarkCompactClass: 'max-h-8',
   },
   christmas: {
     mark: { src: '/logo-christmas.png', width: 253, height: 145 },
     wordmark: { src: '/logo-christmas.png', width: 253, height: 145 },
-    markClass: 'h-7',
-    wordmarkClass: 'h-9 sm:h-10',
-    wordmarkCompactClass: 'h-8',
+    markClass: 'max-h-7',
+    wordmarkClass: 'max-h-9 sm:max-h-10',
+    wordmarkCompactClass: 'max-h-8',
   },
 }
 

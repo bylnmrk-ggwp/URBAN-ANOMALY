@@ -246,10 +246,11 @@ function HeroSlideshow({ section, slides }: { section: Hero; slides: Slide[] }) 
         <ChevronRight aria-hidden="true" />
       </Button>
 
+      {/* Each dot sits in a 44px hit area; the visible dot stays small. */}
       <div
         role="tablist"
         aria-label="Slides"
-        className="absolute inset-x-0 bottom-4 flex justify-center gap-2"
+        className="absolute inset-x-0 bottom-1.5 flex justify-center"
       >
         {slides.map((_, index) => (
           <button
@@ -259,7 +260,7 @@ function HeroSlideshow({ section, slides }: { section: Hero; slides: Slide[] }) 
             aria-selected={index === active}
             aria-label={`Slide ${index + 1}`}
             onClick={() => go(index)}
-            className="flex size-6 items-center justify-center"
+            className="flex size-11 items-center justify-center"
           >
             <span
               aria-hidden="true"

@@ -109,7 +109,7 @@ export default function ProductDetailsPage() {
   }
 
   return (
-    <div className="container-x py-8 pb-28 lg:py-12 lg:pb-16">
+    <div className="container-x py-8 lg:py-12 lg:pb-16">
       <Breadcrumb className="mb-8">
         <BreadcrumbList>
           <BreadcrumbItem>
