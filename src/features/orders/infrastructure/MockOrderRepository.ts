@@ -299,11 +299,13 @@ export class MockOrderRepository implements OrderRepository {
     const emailResult = await this.emails.sendOrderUpdate(order, this.store.settings, {
       paymentConfirmed,
     })
-    this.store.pushNotification({
-      type: 'order_update',
-      ...describeOrderUpdateNotification(order, emailResult),
-      href: `/admin/orders/${order.id}`,
-    })
+    if (emailResult.status !== 'skipped') {
+      this.store.pushNotification({
+        type: 'order_update',
+        ...describeOrderUpdateNotification(order, emailResult),
+        href: `/admin/orders/${order.id}`,
+      })
+    }
 
     return clone(order)
   }

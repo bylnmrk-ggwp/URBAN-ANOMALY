@@ -123,7 +123,7 @@ describe('order emails on an admin status change', () => {
     expect(store.notifications[0]?.message).toContain(order.customer.email)
   })
 
-  it('records the notification without an email when EmailJS is not configured', async () => {
+  it('stays silent when EmailJS is not configured', async () => {
     const emailClient = makeFakeEmailClient('not_configured')
     const { repositories, store } = createMockRepositoriesForTest({ emailClient })
 
@@ -132,9 +132,10 @@ describe('order emails on an admin status change', () => {
       'confirmed',
     )
 
+    // A skipped send on an install that never turned email on is the expected
+    // state, not news: notifying would toast about it on every status change.
     expect(order.status).toBe('confirmed')
-    expect(store.notifications[0]).toMatchObject({ type: 'order_update' })
-    expect(store.notifications[0]?.message).toContain('email notifications are not configured')
+    expect(store.notifications.some((n) => n.type === 'order_update')).toBe(false)
   })
 
   it('still applies the status change when the email transport fails', async () => {
@@ -162,9 +163,7 @@ describe('order emails on an admin status change', () => {
 
     expect(order.paymentStatus).toBe('paid')
     expect(emailClient.sent).toHaveLength(0)
-    expect(store.notifications[0]?.message).toContain(
-      'customer emails are turned off in Store Settings',
-    )
+    expect(store.notifications.some((n) => n.type === 'order_update')).toBe(false)
   })
 
   it('emails fulfilment updates even when payment events are muted', async () => {

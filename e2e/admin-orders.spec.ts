@@ -55,7 +55,8 @@ test('admin confirms the first pending COD order', async ({ page, isMobile }) =>
     await expect(page.getByText('Current status: Confirmed')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Mark Processing' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Confirm Order' })).toHaveCount(0)
-    await expect(page.getByText(/is now Confirmed\./)).toBeVisible()
+    // The order_update notification says "...is now Confirmed." too, so match the toast.
+    await expect(page.locator('[data-sonner-toast]').getByText(/is now Confirmed\./)).toBeVisible()
   })
 })
 

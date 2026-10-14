@@ -151,7 +151,7 @@ export function InventoryTable({
               </div>
             </div>
           </div>
-          <dl className="grid grid-cols-4 gap-2 text-center text-xs">
+          <dl className="grid grid-cols-2 gap-2 text-center text-xs min-[420px]:grid-cols-4">
             {[
               ['Physical', r.physicalStock],
               ['Reserved', r.reservedStock],

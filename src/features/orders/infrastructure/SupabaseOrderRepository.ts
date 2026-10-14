@@ -262,6 +262,8 @@ export class SupabaseOrderRepository implements OrderRepository {
     const result = await this.emails.sendOrderUpdate(order, settings, {
       paymentConfirmed: order.status === 'pending_confirmation' && order.paymentStatus === 'paid',
     })
+    // Nothing to report when email is simply not configured.
+    if (result.status === 'skipped') return
     try {
       unwrap(
         await this.db.rpc('record_order_update_notification', {
