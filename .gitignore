@@ -35,3 +35,7 @@ test-results
 
 # Playwright MCP session artifacts
 .playwright-mcp
+
+# Claude Code session files (agent worktrees, local permission overrides)
+.claude/worktrees/
+.claude/settings.local.json

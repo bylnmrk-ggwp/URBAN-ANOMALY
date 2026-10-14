@@ -7,6 +7,8 @@ export type NotificationType =
   | 'order_issue'
   /** An admin acted on an order; records whether the customer email went out. */
   | 'order_update'
+  /** A sold-out variant with waiting back-in-stock subscribers is available again. */
+  | 'back_in_stock'
 
 export interface AppNotification {
   id: string
