@@ -51,6 +51,11 @@ export function OrderActionsCard({ order }: OrderActionsCardProps) {
   const actions = getAvailableAdminActions(order)
   const copy = pending ? CONFIRM_COPY[pending] : undefined
   const isCancel = pending === 'cancelled'
+  // Confirming a GCash order is held back until its reference is verified in the Payment card.
+  const awaitingGcashVerification =
+    order.paymentMethod === 'gcash' &&
+    order.paymentStatus === 'pending' &&
+    order.status === 'pending_confirmation'
 
   const close = () => {
     setPending(null)
@@ -79,7 +84,13 @@ export function OrderActionsCard({ order }: OrderActionsCardProps) {
           <span className="text-foreground">{ORDER_STATUS_LABELS[order.status]}</span>
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {awaitingGcashVerification ? (
+          <p className="text-muted-foreground text-sm">
+            Verify the GCash reference in the Payment card and mark the order paid before confirming
+            it.
+          </p>
+        ) : null}
         {actions.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             {order.status === 'pending_payment'

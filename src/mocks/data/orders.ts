@@ -198,6 +198,8 @@ interface OrderSpec {
   paymentMethod: PaymentMethod
   status: OrderStatus
   paymentStatus: PaymentStatus
+  /** GCash orders only: the reference number the buyer typed. */
+  paymentReference?: string
   /** For cancelled orders: the status the order was in before cancellation. */
   cancelledFrom?: OrderStatus
   tracking?: OrderTracking
@@ -216,7 +218,8 @@ const COD_PATH: OrderStatus[] = [
 const ONLINE_PATH: OrderStatus[] = ['pending_payment', ...COD_PATH]
 
 function statusPath(spec: OrderSpec): OrderStatus[] {
-  const full = spec.paymentMethod === 'cod' ? COD_PATH : ONLINE_PATH
+  // GCash orders are placed already paid (pending verification), so they follow the COD path.
+  const full = spec.paymentMethod === 'online' ? ONLINE_PATH : COD_PATH
   if (spec.status === 'cancelled') {
     const from = spec.cancelledFrom ?? full[0] ?? 'pending_confirmation'
     return [...full.slice(0, full.indexOf(from) + 1), 'cancelled']
@@ -313,6 +316,7 @@ function buildOrder(spec: OrderSpec): Order {
     total: round2(subtotal + shippingFee - discount),
     paymentMethod: spec.paymentMethod,
     paymentStatus: spec.paymentStatus,
+    paymentReference: spec.paymentReference ?? null,
     status: spec.status,
     statusHistory,
     tracking: spec.tracking ?? null,
@@ -556,6 +560,19 @@ const SPECS: OrderSpec[] = [
     paymentMethod: 'online',
     status: 'pending_payment',
     paymentStatus: 'pending',
+  },
+  {
+    id: 'ord-19',
+    sequence: 1019,
+    daysAgo: 0,
+    hour: 11,
+    person: ANDREA,
+    items: [{ productId: 'prod-03', size: '8', color: 'Midnight', quantity: 1 }],
+    paymentMethod: 'gcash',
+    status: 'pending_confirmation',
+    paymentStatus: 'pending',
+    paymentReference: '1029384756123',
+    customerNote: 'Paid via GCash, reference in the receipt.',
   },
 ]
 

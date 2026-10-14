@@ -35,5 +35,10 @@ export interface OrderRepository {
   setTracking(id: string, tracking: OrderTracking): Promise<Order>
   /** COD only: records cash collected on delivery. Online payments are updated by webhooks. */
   markCodPaymentCollected(id: string): Promise<Order>
+  /**
+   * GCash only: the admin has matched the buyer's reference number in the store's GCash
+   * account, so the pending payment becomes `paid` and the order can be confirmed.
+   */
+  markGcashPaymentVerified(id: string): Promise<Order>
   updateAdminNotes(id: string, notes: string): Promise<Order>
 }

@@ -24,6 +24,8 @@ export const SEED_CLOG_SOLD_OUT_VARIANT_ID = variantId(SEED_CLOG_ID, '6', 'Lava'
 
 /** Seed COD order awaiting confirmation (ord-17). */
 export const SEED_PENDING_COD_ORDER_ID = 'ord-17'
+/** Seed GCash order whose reference still has to be verified (ord-19). */
+export const SEED_PENDING_GCASH_ORDER_ID = 'ord-19'
 /** Seed cancelled COD order (ord-03). */
 export const SEED_CANCELLED_ORDER_ID = 'ord-03'
 

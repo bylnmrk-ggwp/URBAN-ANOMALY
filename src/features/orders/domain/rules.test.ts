@@ -8,7 +8,9 @@ import {
   getProgressIndex,
   initialPaymentStatusFor,
   initialStatusFor,
+  isPrepaidMethod,
   isTerminalStatus,
+  isValidGcashReference,
 } from './rules'
 
 describe('order status transitions', () => {
@@ -53,6 +55,28 @@ describe('order status transitions', () => {
     expect(paid).toContain('confirmed')
   })
 
+  it('lets an admin confirm a GCash order only once its reference has been verified', () => {
+    const unverified = getAvailableAdminActions({
+      status: 'pending_confirmation',
+      paymentMethod: 'gcash',
+      paymentStatus: 'pending',
+    }).map((a) => a.status)
+    expect(unverified).toEqual(['cancelled'])
+
+    const verified = getAvailableAdminActions({
+      status: 'pending_confirmation',
+      paymentMethod: 'gcash',
+      paymentStatus: 'paid',
+    }).map((a) => a.status)
+    expect(verified).toEqual(['confirmed', 'cancelled'])
+  })
+
+  it('treats online and GCash as prepaid, COD as not', () => {
+    expect(isPrepaidMethod('online')).toBe(true)
+    expect(isPrepaidMethod('gcash')).toBe(true)
+    expect(isPrepaidMethod('cod')).toBe(false)
+  })
+
   it('lets buyers cancel only before preparation starts', () => {
     expect(canCustomerCancel({ status: 'pending_payment' })).toBe(true)
     expect(canCustomerCancel({ status: 'pending_confirmation' })).toBe(true)
@@ -66,6 +90,20 @@ describe('initial states and progress', () => {
     expect(initialPaymentStatusFor('cod')).toBe('unpaid')
     expect(initialStatusFor('online')).toBe('pending_payment')
     expect(initialPaymentStatusFor('online')).toBe('pending')
+  })
+
+  it('starts GCash at pending confirmation / pending so an admin verifies the reference', () => {
+    expect(initialStatusFor('gcash')).toBe('pending_confirmation')
+    expect(initialPaymentStatusFor('gcash')).toBe('pending')
+  })
+
+  it('accepts GCash references of 8-20 letters or digits only', () => {
+    expect(isValidGcashReference('1029384756123')).toBe(true)
+    expect(isValidGcashReference('ABC12345')).toBe(true)
+    expect(isValidGcashReference('1234567')).toBe(false)
+    expect(isValidGcashReference('1'.repeat(21))).toBe(false)
+    expect(isValidGcashReference('1234 5678')).toBe(false)
+    expect(isValidGcashReference('')).toBe(false)
   })
 
   it('maps statuses onto the timeline', () => {

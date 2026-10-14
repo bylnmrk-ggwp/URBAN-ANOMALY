@@ -10,11 +10,13 @@ import type { AuthUser } from '@/features/auth/domain/entities'
 import { useStoreSettings } from '@/features/checkout/application/useStoreSettings'
 import { checkoutDefaults, checkoutSchema } from '@/features/checkout/domain/schema'
 import type { CheckoutFormValues } from '@/features/checkout/domain/schema'
+import type { StoreSettings } from '@/features/settings/domain/entities'
 import { getErrorMessage } from '@/lib/errors'
 import { formatPrice } from '@/lib/format'
 
 import { CheckoutContactFields } from './CheckoutContactFields'
 import { CheckoutPaymentFields } from './CheckoutPaymentFields'
+import type { GcashCheckoutDetails } from './CheckoutPaymentFields'
 import { CheckoutShippingFields } from './CheckoutShippingFields'
 
 interface CheckoutFormProps {
@@ -24,6 +26,16 @@ interface CheckoutFormProps {
   submitError?: unknown
   /** Blocks submission (e.g. the cart has unavailable items). */
   disabledReason?: string | null
+}
+
+/** GCash is offered only once the owner has switched it on and uploaded the QR image. */
+function gcashDetails(settings: StoreSettings | undefined): GcashCheckoutDetails | null {
+  if (!settings?.gcashEnabled || !settings.gcashQrUrl) return null
+  return {
+    accountName: settings.gcashAccountName,
+    number: settings.gcashNumber,
+    qrUrl: settings.gcashQrUrl,
+  }
 }
 
 function buildDefaults(user: AuthUser | null): CheckoutFormValues {
@@ -86,6 +98,8 @@ export function CheckoutForm({
         <CheckoutPaymentFields
           codEnabled={settings.data?.codEnabled ?? true}
           onlinePaymentEnabled={settings.data?.onlinePaymentEnabled ?? true}
+          gcash={gcashDetails(settings.data)}
+          total={total}
         />
 
         {submitError ? (

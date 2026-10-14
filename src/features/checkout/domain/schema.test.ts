@@ -42,4 +42,30 @@ describe('checkoutSchema', () => {
     const result = checkoutSchema.safeParse({ ...valid, paymentMethod: 'cheque' })
     expect(result.success).toBe(false)
   })
+
+  it('ignores the reference number unless GCash is chosen', () => {
+    expect(checkoutSchema.safeParse({ ...valid, paymentReference: '' }).success).toBe(true)
+    expect(
+      checkoutSchema.safeParse({ ...valid, paymentMethod: 'online', paymentReference: '' }).success,
+    ).toBe(true)
+  })
+
+  it('requires a well-formed GCash reference number for GCash orders', () => {
+    const gcash = { ...valid, paymentMethod: 'gcash' as const }
+
+    const missing = checkoutSchema.safeParse({ ...gcash, paymentReference: '' })
+    expect(missing.success).toBe(false)
+    if (!missing.success) {
+      expect(missing.error.issues.map((i) => i.path[0])).toEqual(['paymentReference'])
+    }
+
+    expect(checkoutSchema.safeParse({ ...gcash, paymentReference: '1234567' }).success).toBe(false)
+    expect(checkoutSchema.safeParse({ ...gcash, paymentReference: '1234 5678 90' }).success).toBe(
+      false,
+    )
+
+    const trimmed = checkoutSchema.safeParse({ ...gcash, paymentReference: ' 1029384756123 ' })
+    expect(trimmed.success).toBe(true)
+    if (trimmed.success) expect(trimmed.data.paymentReference).toBe('1029384756123')
+  })
 })

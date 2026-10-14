@@ -22,6 +22,7 @@ export class MockSettingsRepository implements SettingsRepository {
     this.store.settings = {
       ...input,
       logoUrl: input.logoUrl || null,
+      gcashQrUrl: input.gcashQrUrl || null,
       onlinePaymentConfigured,
       emailNotificationsConfigured,
     }

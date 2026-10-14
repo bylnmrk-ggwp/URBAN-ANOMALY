@@ -30,6 +30,7 @@ type SwitchFieldName = Extract<
   FieldPath<StoreSettingsFormInput>,
   | 'codEnabled'
   | 'onlinePaymentEnabled'
+  | 'gcashEnabled'
   | 'notifyNewOrders'
   | 'notifyLowStock'
   | 'notifyPaymentEvents'

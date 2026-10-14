@@ -88,6 +88,8 @@ export class SupabaseOrderRepository implements OrderRepository {
         delivery_instructions: input.shippingAddress.deliveryInstructions,
       },
       payment_method: input.paymentMethod,
+      // Validated by `place_order` (format + GCash enabled); stored only for GCash orders.
+      payment_reference: input.paymentReference ?? null,
       items: input.items.map((i) => ({
         product_id: i.productId,
         variant_id: i.variantId,
@@ -225,6 +227,12 @@ export class SupabaseOrderRepository implements OrderRepository {
 
   async markCodPaymentCollected(id: string): Promise<Order> {
     unwrap(await this.db.rpc('mark_cod_payment_collected', { p_order_id: id }))
+    return this.requireOrder(id)
+  }
+
+  /** `0005_gcash.sql`: admin-only RPC; also raises the `payment_confirmed` notification. */
+  async markGcashPaymentVerified(id: string): Promise<Order> {
+    unwrap(await this.db.rpc('mark_gcash_payment_verified', { p_order_id: id }))
     return this.requireOrder(id)
   }
 

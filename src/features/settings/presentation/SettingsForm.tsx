@@ -20,6 +20,7 @@ import {
   ShippingSection,
 } from './CommerceSections'
 import type { StoreSettingsFormInput } from './fields'
+import { GcashSection } from './GcashSection'
 import { StoreSection } from './StoreSection'
 
 function toFormValues(settings: StoreSettings): StoreSettingsFormInput {
@@ -33,6 +34,10 @@ function toFormValues(settings: StoreSettings): StoreSettingsFormInput {
     freeShippingThreshold: settings.freeShippingThreshold,
     codEnabled: settings.codEnabled,
     onlinePaymentEnabled: settings.onlinePaymentEnabled,
+    gcashEnabled: settings.gcashEnabled,
+    gcashAccountName: settings.gcashAccountName,
+    gcashNumber: settings.gcashNumber,
+    gcashQrUrl: settings.gcashQrUrl ?? '',
     defaultLowStockThreshold: settings.defaultLowStockThreshold,
     notifyNewOrders: settings.notifyNewOrders,
     notifyLowStock: settings.notifyLowStock,
@@ -41,7 +46,11 @@ function toFormValues(settings: StoreSettings): StoreSettingsFormInput {
 }
 
 function toInput(values: StoreSettingsFormValues): StoreSettingsInput {
-  return { ...values, logoUrl: values.logoUrl === '' ? null : values.logoUrl }
+  return {
+    ...values,
+    logoUrl: values.logoUrl === '' ? null : values.logoUrl,
+    gcashQrUrl: values.gcashQrUrl === '' ? null : values.gcashQrUrl,
+  }
 }
 
 interface SettingsFormProps {
@@ -73,6 +82,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
             <StoreSection form={form} />
             <ShippingSection form={form} />
             <PaymentsSection form={form} settings={settings} />
+            <GcashSection form={form} />
           </div>
           <div className="space-y-6">
             <InventorySection form={form} />

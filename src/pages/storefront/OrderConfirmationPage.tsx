@@ -60,6 +60,8 @@ export default function OrderConfirmationPage() {
   }
 
   const awaitingPayment = order.paymentMethod === 'online' && order.paymentStatus !== 'paid'
+  // The buyer has already sent the money; the store still has to match the reference.
+  const awaitingVerification = order.paymentMethod === 'gcash' && order.paymentStatus === 'pending'
   const trackHref = routes.orderDetails(order.id)
 
   return (
@@ -102,6 +104,19 @@ export default function OrderConfirmationPage() {
             <p className="text-muted-foreground mt-1">
               We'll confirm it as soon as the payment of {formatPrice(order.total)} is received. A
               confirmation email goes to {order.customer.email}.
+            </p>
+          </div>
+        ) : awaitingVerification ? (
+          <div
+            role="status"
+            className="border-warning/30 bg-warning/5 rounded-md border p-5 text-sm"
+          >
+            <p className="text-warning font-medium">We're verifying your GCash payment.</p>
+            <p className="text-muted-foreground mt-1">
+              Reference{' '}
+              <span className="text-foreground font-mono text-xs">{order.paymentReference}</span>{' '}
+              for {formatPrice(order.total)} is being matched against our GCash account. We'll
+              confirm the order once it clears; updates go to {order.customer.email}.
             </p>
           </div>
         ) : (

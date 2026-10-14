@@ -67,7 +67,14 @@ const columns: DataTableColumn<OrderSummary>[] = [
   {
     key: 'method',
     header: 'Method',
-    cell: (o) => <PaymentMethodBadge method={o.paymentMethod} />,
+    cell: (o) => (
+      <span className="flex flex-col items-start gap-1">
+        <PaymentMethodBadge method={o.paymentMethod} />
+        {o.paymentReference ? (
+          <span className="text-muted-foreground font-mono text-xs">{o.paymentReference}</span>
+        ) : null}
+      </span>
+    ),
     hideBelow: 'lg',
   },
   {

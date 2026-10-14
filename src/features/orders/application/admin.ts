@@ -116,6 +116,18 @@ export function useMarkCodCollected() {
   })
 }
 
+export function useMarkGcashVerified() {
+  const invalidate = useInvalidateOrderData()
+  return useMutation({
+    mutationFn: (id: string) => repositories.orders.markGcashPaymentVerified(id),
+    onSuccess: async (order) => {
+      await invalidate()
+      toast.success(`GCash payment verified for ${order.orderNumber}.`)
+    },
+    onError: (error) => toast.error(getErrorMessage(error, 'Could not record the payment.')),
+  })
+}
+
 export function useUpdateAdminNotes() {
   const invalidate = useInvalidateOrderData()
   return useMutation({
