@@ -34,9 +34,29 @@ export function reviewPhotoPath(userId: string, file: File, id: string = randomI
   return `reviews/${userId}/${id}.${extension}`
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * True when `url` is the hosted project's public object URL for a photo in `userId`'s own
+ * folder: `https://<ref>.supabase.co/storage/v1/object/public/review-photos/reviews/<userId>/<file>`.
+ * Mirrors `is_own_review_photo_url` in `0006_features_round2.sql`, the rule `submit_review`
+ * enforces (it also checks the object exists), so a URL that would be refused is caught before
+ * the round-trip and the uploads cleaned up.
+ */
+export function isOwnReviewPhotoUrl(url: string, userId: string): boolean {
+  if (!userId) return false
+  const pattern = new RegExp(
+    `^https://[a-z0-9-]+\\.supabase\\.co/storage/v1/object/public/${REVIEW_PHOTO_BUCKET}/reviews/${escapeRegExp(userId)}/[^/?#]+$`,
+  )
+  return pattern.test(url)
+}
+
 /**
  * Storage object path of a public URL from the review bucket, or null for anything else
- * (mock blob URLs, external images), so deletions never touch foreign objects.
+ * (mock blob URLs, external images, paths outside `reviews/<folder>/<file>`), so deletions
+ * never touch foreign objects.
  */
 export function reviewPhotoStoragePath(url: string): string | null {
   const marker = `/storage/v1/object/public/${REVIEW_PHOTO_BUCKET}/`
@@ -44,9 +64,16 @@ export function reviewPhotoStoragePath(url: string): string | null {
   if (index === -1) return null
   const path = url.slice(index + marker.length).split(/[?#]/)[0] ?? ''
   if (!path) return null
+  let decoded: string
   try {
-    return decodeURIComponent(path)
+    decoded = decodeURIComponent(path)
   } catch {
     return null
   }
+  const segments = decoded.split('/')
+  const wellFormed =
+    segments.length === 3 &&
+    segments[0] === 'reviews' &&
+    segments.every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+  return wellFormed ? decoded : null
 }

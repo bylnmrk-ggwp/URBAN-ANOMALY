@@ -11,9 +11,10 @@ import type { AdminRole, TeamMember, TeamRepository } from '../domain/entities'
 
 /**
  * Active members are `profiles` rows with `role = 'admin'` (sub-role in `admin_role`);
- * people without an account yet are rows in `team_invites`, promoted by a trigger when that
- * e-mail signs up (0006_features_round2.sql). Every write is an owner-only RPC that also
- * enforces the last-owner rule; `team_members` lists both kinds, oldest first.
+ * people without a confirmed account yet are rows in `team_invites`, promoted by a trigger on
+ * `auth.users` once that address is confirmed (0006_features_round2.sql). Every write is an
+ * owner-only RPC that also enforces the last-owner rule; `team_members` lists both kinds,
+ * oldest first.
  */
 export class SupabaseTeamRepository implements TeamRepository {
   private get db() {

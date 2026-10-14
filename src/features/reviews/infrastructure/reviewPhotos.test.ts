@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   REVIEW_PHOTO_MAX_BYTES,
+  isOwnReviewPhotoUrl,
   reviewPhotoPath,
   reviewPhotoStoragePath,
   validateReviewPhoto,
@@ -57,5 +58,53 @@ describe('reviewPhotoStoragePath', () => {
       reviewPhotoStoragePath('https://abc.supabase.co/storage/v1/object/public/cms-media/a.jpg'),
     ).toBeNull()
     expect(reviewPhotoStoragePath(base)).toBeNull()
+  })
+
+  it('only yields paths of the form reviews/<folder>/<file>', () => {
+    expect(reviewPhotoStoragePath(`${base}reviews/u1`)).toBeNull()
+    expect(reviewPhotoStoragePath(`${base}reviews/u1/`)).toBeNull()
+    expect(reviewPhotoStoragePath(`${base}reviews/u1/sub/x.jpg`)).toBeNull()
+    expect(reviewPhotoStoragePath(`${base}other/u1/x.jpg`)).toBeNull()
+    expect(reviewPhotoStoragePath(`${base}reviews/../x.jpg`)).toBeNull()
+    expect(reviewPhotoStoragePath(`${base}reviews/u1/..`)).toBeNull()
+    expect(reviewPhotoStoragePath(`${base}reviews/u1/%2E%2E`)).toBeNull()
+    expect(reviewPhotoStoragePath(`${base}reviews/u1/%ZZ`)).toBeNull()
+  })
+})
+
+describe('isOwnReviewPhotoUrl', () => {
+  const user = '0b4c6d8e-1111-4222-8333-444455556666'
+  const own = `https://abc.supabase.co/storage/v1/object/public/review-photos/reviews/${user}/photo.jpg`
+
+  it('accepts the public URL of an object in the caller folder (the submit_review rule)', () => {
+    expect(isOwnReviewPhotoUrl(own, user)).toBe(true)
+    expect(
+      isOwnReviewPhotoUrl(
+        `https://my-project-1.supabase.co/storage/v1/object/public/review-photos/reviews/${user}/a-b.webp`,
+        user,
+      ),
+    ).toBe(true)
+  })
+
+  it('refuses other users, hosts, schemes, buckets, nested paths and query strings', () => {
+    expect(isOwnReviewPhotoUrl(own, 'someone-else')).toBe(false)
+    expect(isOwnReviewPhotoUrl(own, '')).toBe(false)
+    expect(isOwnReviewPhotoUrl(own.replace('abc.supabase.co', 'evil.example.com'), user)).toBe(
+      false,
+    )
+    expect(
+      isOwnReviewPhotoUrl(own.replace('abc.supabase.co', 'abc.supabase.co.evil.com'), user),
+    ).toBe(false)
+    expect(isOwnReviewPhotoUrl(own.replace('https://', 'http://'), user)).toBe(false)
+    expect(isOwnReviewPhotoUrl(own.replace('review-photos', 'cms-media'), user)).toBe(false)
+    expect(isOwnReviewPhotoUrl(own.replace('photo.jpg', 'sub/photo.jpg'), user)).toBe(false)
+    expect(isOwnReviewPhotoUrl(`${own}?download=1`, user)).toBe(false)
+    expect(isOwnReviewPhotoUrl(`${own}#x`, user)).toBe(false)
+    expect(isOwnReviewPhotoUrl(own.replace('photo.jpg', ''), user)).toBe(false)
+    expect(isOwnReviewPhotoUrl('blob:mock/rev-1', user)).toBe(false)
+  })
+
+  it('matches the user id literally, not as a pattern', () => {
+    expect(isOwnReviewPhotoUrl(own, user.replace('0b4c', '0b.c'))).toBe(false)
   })
 })

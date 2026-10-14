@@ -23,6 +23,13 @@
 --     wrapper then increments `used_count` and records a `discount_redemptions` row —
 --     all in one transaction. Later overrides of `place_order` (same signature) are
 --     picked up automatically.
+--   * Team invites are applied by a trigger on auth.users once the address is confirmed
+--     (section 5b), never at sign-up time. Section 5a tightens the role guards from
+--     0001/0003: only owners (admin_role = 'owner', never null) change roles, and
+--     profiles.email mirrors auth.users.email.
+--   * Function privileges (end of file): Supabase's default privileges grant EXECUTE on
+--     every new function to anon/authenticated, so internal helpers and trigger
+--     functions are revoked from those roles explicitly; only the RPCs are granted back.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -205,6 +212,7 @@ declare
   v_result   jsonb;
   v_order_id uuid;
   v_amount   numeric(12,2);
+  v_total    numeric(12,2);
 begin
   if v_code = '' then
     return public.place_order(payload);
@@ -226,7 +234,18 @@ begin
   perform set_config('app.discount_id', '', true);
 
   v_order_id := (v_result ->> 'order_id')::uuid;
-  select discount into v_amount from public.orders where id = v_order_id;
+  -- The row already carries the discounted figures: the BEFORE INSERT trigger rewrote
+  -- discount / total before it landed, so `order` in v_result (order_json) is right too.
+  select discount, total into v_amount, v_total from public.orders where id = v_order_id;
+
+  -- place_order composed its admin "New order" notification from the pre-discount total
+  -- it computed locally. Rewrite the PHP amount in that message to the stored total
+  -- (same to_char mask as 0001) without redefining place_order.
+  update public.notifications n
+     set message = regexp_replace(
+           n.message, 'PHP [0-9,]+\.[0-9]{2}', 'PHP ' || to_char(v_total, 'FM999,999,990.00'))
+   where n.type = 'new_order'
+     and n.href = '/admin/orders/' || v_order_id::text;
 
   update public.discount_codes set used_count = used_count + 1 where id = d.id;
   insert into public.discount_redemptions (discount_id, order_id, code, amount)
@@ -380,10 +399,21 @@ begin
   return parts[1] || ' ' || upper(left(parts[n], 1)) || '.';
 end $$;
 
+-- True when p_url is this project's public object URL for bucket review-photos under
+-- p_user's own folder (reviews/<p_user>/<file>) - the only shape submit_review stores and
+-- delete_review hands back. Mirrored by isOwnReviewPhotoUrl in reviewPhotos.ts.
+create or replace function public.is_own_review_photo_url(p_url text, p_user uuid)
+returns boolean language sql immutable as $$
+  select p_user is not null and coalesce(p_url, '') ~
+    ('^https://[a-z0-9-]+\.supabase\.co/storage/v1/object/public/review-photos/reviews/'
+      || p_user::text || '/[^/?#]+$');
+$$;
+
 -- -----------------------------------------------------------------------------
 -- RPC: submit_review(p_product_id, p_rating, p_title, p_body, p_photo_urls) -> review json
 -- Authenticated buyers. Verified purchase = a delivered order of theirs contains the
--- product. Photos are uploaded by the client to bucket review-photos first.
+-- product. Photos are uploaded by the client to bucket review-photos first; every URL must
+-- be the caller's own upload (folder reviews/<auth.uid()>/) and the object must exist.
 -- -----------------------------------------------------------------------------
 create or replace function public.submit_review(
   p_product_id uuid, p_rating integer, p_title text, p_body text, p_photo_urls text[]
@@ -394,6 +424,8 @@ declare
   v_title  text := trim(coalesce(p_title, ''));
   v_body   text := trim(coalesce(p_body, ''));
   v_photos text[] := coalesce(p_photo_urls, '{}');
+  v_photo  text;
+  v_path   text;
   v_name   text;
   v_id     uuid;
 begin
@@ -421,6 +453,20 @@ begin
   if cardinality(v_photos) > 3 then
     raise exception 'You can attach up to 3 photos.' using errcode = 'VA001';
   end if;
+  -- Only the caller's own uploads are stored: the storefront embeds these URLs and
+  -- delete_review hands them back for removal, so foreign hosts, other users' folders and
+  -- never-uploaded paths are refused here rather than trusted.
+  foreach v_photo in array v_photos loop
+    if not public.is_own_review_photo_url(v_photo, v_user) then
+      raise exception 'Photos must be uploaded to your own review folder first.' using errcode = 'VA001';
+    end if;
+    v_path := substring(v_photo from '/storage/v1/object/public/review-photos/(.+)$');
+    if not exists (
+      select 1 from storage.objects where bucket_id = 'review-photos' and name = v_path
+    ) then
+      raise exception 'One of the photos was not found. Please upload it again.' using errcode = 'VA001';
+    end if;
+  end loop;
   if exists (select 1 from public.reviews where product_id = p_product_id and user_id = v_user) then
     raise exception 'You have already reviewed this product.' using errcode = 'CF001';
   end if;
@@ -478,21 +524,27 @@ begin
   return public.review_json(p_id);
 end $$;
 
--- Returns the photo URLs so the client can remove the storage objects afterwards.
+-- Returns the photo URLs so the client can remove the storage objects afterwards - only
+-- those under the author's own folder (reviews/<user_id>/); anything else is never handed
+-- back, so the client cannot be steered at foreign objects. Nothing when the author is gone.
 create or replace function public.delete_review(p_id uuid)
 returns text[]
 language plpgsql security definer set search_path = public as $$
 declare
   v_photos text[];
+  v_user   uuid;
 begin
   if not public.is_admin() then
     raise exception 'Admins only.' using errcode = 'FB001';
   end if;
-  delete from public.reviews where id = p_id returning photo_urls into v_photos;
+  delete from public.reviews where id = p_id returning photo_urls, user_id into v_photos, v_user;
   if v_photos is null then
     raise exception 'Review was not found.' using errcode = 'NF001';
   end if;
-  return v_photos;
+  return coalesce(
+    (select array_agg(u) from unnest(v_photos) as u where public.is_own_review_photo_url(u, v_user)),
+    '{}'::text[]
+  );
 end $$;
 
 -- =============================================================================
@@ -910,10 +962,10 @@ end $$;
 
 -- =============================================================================
 -- 5. TEAM (admin staff management)
--- Active members are `profiles` rows with role = 'admin' (sub-role in admin_role).
--- Invites for people without an account are stored in team_invites; when the invitee
--- signs up, the BEFORE INSERT trigger on profiles promotes the new row in place
--- (no UPDATE, so the role guards from 0001/0003 are not involved).
+-- Active members are `profiles` rows with role = 'admin' (sub-role in admin_role, never
+-- null for an admin - see 5a). Invites for people without a confirmed account are stored
+-- in team_invites and applied by a trigger on auth.users once Supabase Auth has confirmed
+-- the address (5b) - never at sign-up time, so knowing an invited address is not enough.
 -- =============================================================================
 create table if not exists public.team_invites (
   id           uuid primary key default gen_random_uuid(),
@@ -927,30 +979,159 @@ create table if not exists public.team_invites (
 create unique index if not exists team_invites_pending_email_key
   on public.team_invites (lower(email)) where accepted_at is null;
 
-create or replace function public.profiles_apply_team_invite()
-returns trigger language plpgsql security definer set search_path = public as $$
-declare
-  inv public.team_invites%rowtype;
+-- -----------------------------------------------------------------------------
+-- 5a. Role and e-mail guards on profiles (idempotent overrides of 0001 / 0003)
+--   * is_owner(): an owner is an admin whose admin_role is explicitly 'owner'. 0003 treated
+--     a null admin_role as owner while 0001's role guard only asked for is_admin(), so a
+--     staff admin could `set role = 'admin'` on any profile and mint an owner.
+--   * guard_profile_role(): role changes need is_owner() unless app.bypass_guard is on
+--     (the SECURITY DEFINER paths below set it). The 0001 trigger profiles_guard_role keeps
+--     pointing at this function.
+--   * profiles_guard_admin_role(): as 0003, plus the bypass, so the invite trigger can
+--     promote a profile without an owner session.
+--   * guard_profile_email(): profiles.email mirrors auth.users.email. profiles_update_own
+--     let a buyer rewrite it (and squat on an address about to be invited); now only admins
+--     or the auth sync trigger below may change it.
+--   * Every admin row carries a non-null admin_role (backfill + check constraint).
+-- -----------------------------------------------------------------------------
+create or replace function public.is_owner()
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'admin' and admin_role = 'owner'
+  );
+$$;
+
+create or replace function public.guard_profile_role()
+returns trigger language plpgsql as $$
 begin
-  select * into inv from public.team_invites
-   where lower(email) = lower(new.email) and accepted_at is null
-   order by created_at desc limit 1
-   for update;
-  if found then
-    new.role := 'admin';
-    new.admin_role := inv.role;
-    if coalesce(trim(new.full_name), '') = '' then
-      new.full_name := inv.full_name;
-    end if;
-    update public.team_invites set accepted_at = now() where id = inv.id;
+  if new.role <> old.role and not public.bypass_guard_enabled() and not public.is_owner() then
+    raise exception 'Only owners can change roles.' using errcode = 'FB001';
   end if;
   return new;
 end $$;
 
+create or replace function public.profiles_guard_admin_role()
+returns trigger language plpgsql as $$
+begin
+  if new.admin_role is distinct from old.admin_role
+     and not public.bypass_guard_enabled() and not public.is_owner() then
+    raise exception 'Only owners can change admin roles.' using errcode = 'FB001';
+  end if;
+  return new;
+end $$;
+
+create or replace function public.guard_profile_email()
+returns trigger language plpgsql as $$
+begin
+  if new.email is distinct from old.email
+     and not public.bypass_guard_enabled() and not public.is_admin() then
+    raise exception 'Email can only be changed through account settings.' using errcode = 'FB001';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists profiles_guard_email on public.profiles;
+create trigger profiles_guard_email
+  before update on public.profiles
+  for each row execute function public.guard_profile_email();
+
+-- Supabase Auth is the only place an address changes (updateUser + confirmation); mirror it.
+-- handle_new_user (0001) writes profiles.email on INSERT, which the guard above never sees.
+create or replace function public.profiles_sync_email_from_auth()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_prev text := current_setting('app.bypass_guard', true);
+begin
+  perform set_config('app.bypass_guard', 'on', true);
+  begin
+    update public.profiles set email = coalesce(new.email, '') where id = new.id;
+  exception when unique_violation then
+    raise warning 'profiles.email not synced for %: another profile already uses %', new.id, new.email;
+  end;
+  perform set_config('app.bypass_guard', coalesce(v_prev, ''), true);
+  return new;
+end $$;
+
+drop trigger if exists on_auth_user_email_changed on auth.users;
+create trigger on_auth_user_email_changed
+  after update of email on auth.users
+  for each row when (old.email is distinct from new.email)
+  execute function public.profiles_sync_email_from_auth();
+
+-- Admins that predate 0003, or were promoted with a bare `set role = 'admin'`, become
+-- owners (what 0003 intended); the constraint keeps every admin row explicit from now on.
+-- The guards above are already in place, hence the bypass.
+do $$
+begin
+  perform set_config('app.bypass_guard', 'on', true);
+  update public.profiles set admin_role = 'owner' where role = 'admin' and admin_role is null;
+  perform set_config('app.bypass_guard', '', true);
+end $$;
+
+alter table public.profiles drop constraint if exists profiles_admin_requires_admin_role;
+alter table public.profiles
+  add constraint profiles_admin_requires_admin_role
+  check (role <> 'admin' or admin_role is not null);
+
+-- -----------------------------------------------------------------------------
+-- 5b. Applying invites: AFTER INSERT OR UPDATE OF email_confirmed_at, email ON auth.users
+-- Runs once Supabase Auth has confirmed the address: sign-ups with confirmations disabled,
+-- OAuth identities and admin-created users are confirmed at INSERT; a later confirmation
+-- (or a confirmed e-mail change to an invited address) arrives as an UPDATE. A pending
+-- invite for that address promotes the user's profile and is stamped accepted. The profile
+-- already exists: AFTER INSERT triggers fire in name order and on_auth_user_team_invite
+-- sorts after on_auth_user_created (handle_new_user, 0001).
+-- The previous BEFORE INSERT trigger on profiles fired from handle_new_user at sign-up,
+-- before any confirmation, and is removed.
+-- -----------------------------------------------------------------------------
 drop trigger if exists profiles_apply_team_invite on public.profiles;
-create trigger profiles_apply_team_invite
-  before insert on public.profiles
-  for each row execute function public.profiles_apply_team_invite();
+drop function if exists public.profiles_apply_team_invite();
+
+create or replace function public.auth_users_apply_team_invite()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  inv     public.team_invites%rowtype;
+  v_email text := lower(trim(coalesce(new.email, '')));
+  v_prev  text := current_setting('app.bypass_guard', true);
+begin
+  if new.email_confirmed_at is null or v_email = '' then
+    return new;
+  end if;
+  select * into inv from public.team_invites
+   where lower(email) = v_email and accepted_at is null
+   order by created_at desc limit 1
+   for update;
+  if not found then
+    return new;
+  end if;
+
+  perform set_config('app.bypass_guard', 'on', true);
+  update public.profiles
+     set role = 'admin',
+         admin_role = inv.role,
+         full_name = case when coalesce(trim(full_name), '') = '' then inv.full_name else full_name end
+   where id = new.id;
+  if not found then
+    -- Defensive: handle_new_user normally created the row before this trigger ran.
+    insert into public.profiles (id, email, full_name, phone, role, admin_role)
+    values (
+      new.id, coalesce(new.email, ''),
+      coalesce(nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''), inv.full_name),
+      coalesce(new.raw_user_meta_data ->> 'phone', ''),
+      'admin', inv.role
+    );
+  end if;
+  update public.team_invites set accepted_at = now() where id = inv.id;
+  perform set_config('app.bypass_guard', coalesce(v_prev, ''), true);
+  return new;
+end $$;
+
+drop trigger if exists on_auth_user_team_invite on auth.users;
+create trigger on_auth_user_team_invite
+  after insert or update of email_confirmed_at, email on auth.users
+  for each row execute function public.auth_users_apply_team_invite();
 
 -- Member json for an admin profile id or a pending invite id (null otherwise).
 -- last_active_at comes from auth.users.last_sign_in_at (readable by the function owner).
@@ -959,7 +1140,7 @@ returns jsonb language sql stable security definer set search_path = public as $
   select coalesce(
     (select jsonb_build_object(
        'id', p.id, 'email', p.email, 'full_name', p.full_name,
-       'role', coalesce(p.admin_role, 'owner'), 'status', 'active',
+       'role', p.admin_role, 'status', 'active',
        'last_active_at', u.last_sign_in_at, 'created_at', p.created_at)
      from public.profiles p left join auth.users u on u.id = p.id
      where p.id = p_id and p.role = 'admin'),
@@ -974,7 +1155,7 @@ $$;
 create or replace function public.active_owner_count()
 returns integer language sql stable security definer set search_path = public as $$
   select count(*)::integer from public.profiles
-  where role = 'admin' and coalesce(admin_role, 'owner') = 'owner';
+  where role = 'admin' and admin_role = 'owner';
 $$;
 
 -- RPC: team_members() -> json[] (admin), oldest first.
@@ -997,18 +1178,21 @@ end $$;
 
 -- -----------------------------------------------------------------------------
 -- RPC: invite_team_member(p_email, p_full_name, p_role) -> member json (owner)
--- An existing buyer account is promoted immediately (status 'active'); otherwise a
--- pending invite is stored (status 'invited') and applied when that e-mail signs up.
+-- An existing, confirmed account (auth.users) is promoted immediately (status 'active');
+-- otherwise a pending invite is stored (status 'invited') and applied by the auth.users
+-- trigger once that address is confirmed. The lookup never uses profiles.email: a buyer
+-- could have set it to the address about to be invited.
 -- Sending the invitation e-mail is a backend concern (Edge Function / Auth invite).
 -- -----------------------------------------------------------------------------
 create or replace function public.invite_team_member(p_email text, p_full_name text, p_role public.admin_role)
 returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  v_email text := lower(trim(coalesce(p_email, '')));
-  v_name  text := trim(coalesce(p_full_name, ''));
-  prof    public.profiles%rowtype;
-  v_id    uuid;
+  v_email   text := lower(trim(coalesce(p_email, '')));
+  v_name    text := trim(coalesce(p_full_name, ''));
+  v_user_id uuid;
+  v_role    public.user_role;
+  v_id      uuid;
 begin
   if not public.is_owner() then
     raise exception 'Only owners can manage the team.' using errcode = 'FB001';
@@ -1026,13 +1210,24 @@ begin
     raise exception 'Choose a role.' using errcode = 'VA001';
   end if;
 
-  select * into prof from public.profiles where lower(email) = v_email for update;
-  if found then
-    if prof.role = 'admin' then
+  select u.id into v_user_id
+    from auth.users u
+   where lower(u.email) = v_email and u.email_confirmed_at is not null
+   limit 1;
+  if v_user_id is not null then
+    select role into v_role from public.profiles where id = v_user_id for update;
+    if v_role = 'admin' then
       raise exception 'That person is already on the team.' using errcode = 'CF001';
     end if;
-    update public.profiles set role = 'admin', admin_role = p_role where id = prof.id;
-    return public.team_member_json(prof.id);
+    if v_role is null then
+      -- Confirmed account without a profile row (handle_new_user normally creates it).
+      insert into public.profiles (id, email, full_name, phone, role, admin_role)
+      values (v_user_id, v_email, v_name, '', 'admin', p_role);
+    else
+      -- The caller is an owner, so the role guards (5a) let this through.
+      update public.profiles set role = 'admin', admin_role = p_role where id = v_user_id;
+    end if;
+    return public.team_member_json(v_user_id);
   end if;
 
   if exists (select 1 from public.team_invites where lower(email) = v_email and accepted_at is null) then
@@ -1061,7 +1256,7 @@ begin
 
   select * into prof from public.profiles where id = p_id and role = 'admin' for update;
   if found then
-    if coalesce(prof.admin_role, 'owner') = 'owner' and p_role <> 'owner'
+    if prof.admin_role = 'owner' and p_role <> 'owner'
        and public.active_owner_count() <= 1 then
       raise exception 'A store needs at least one owner. Promote someone else first.' using errcode = 'CF001';
     end if;
@@ -1092,7 +1287,7 @@ begin
 
   select * into prof from public.profiles where id = p_id and role = 'admin' for update;
   if found then
-    if coalesce(prof.admin_role, 'owner') = 'owner' and public.active_owner_count() <= 1 then
+    if prof.admin_role = 'owner' and public.active_owner_count() <= 1 then
       raise exception 'A store needs at least one owner. Promote someone else first.' using errcode = 'CF001';
     end if;
     update public.profiles set role = 'buyer', admin_role = null where id = prof.id;
@@ -1107,39 +1302,83 @@ end $$;
 
 -- =============================================================================
 -- Function privileges
+--
+-- Supabase's `postgres` role has ALTER DEFAULT PRIVILEGES granting EXECUTE on every new
+-- function to anon, authenticated and service_role, and `revoke ... from public` does not
+-- touch those role-specific grants. So every function in this file is first revoked from
+-- public, anon AND authenticated, then only the RPCs are granted back. service_role keeps
+-- its default grant (backend / Edge Functions). CREATE OR REPLACE preserves ACLs, so the
+-- block is idempotent.
+--
+-- Classification
+--   Internal helpers / trigger functions (never callable by a client role):
+--     discount_amount, discount_ineligible_reason, discount_code_json,
+--     orders_apply_pending_discount, is_own_review_photo_url, review_json,
+--     review_author_name, stock_alert_json, variants_notify_back_in_stock,
+--     return_can_transition, return_request_json, team_member_json, active_owner_count,
+--     guard_profile_role, profiles_guard_admin_role, guard_profile_email,
+--     profiles_sync_email_from_auth, auth_users_apply_team_invite.
+--     (The *_json helpers and the trigger functions are SECURITY DEFINER and read past
+--      RLS - e-mails, pending reviews, customer data - which is why this matters.)
+--   Pure helper that stays executable: is_plausible_email (IMMUTABLE, no table access;
+--     referenced by CHECK constraints on stock_alerts / team_invites).
+--   RLS helper that stays executable: is_owner (policies evaluate it as the client role,
+--     as 0003 granted it).
+--   Storefront RPCs (anon + authenticated): validate_discount_code,
+--     place_order_with_discount, review_summary, subscribe_stock_alert.
+--   Signed-in buyer RPCs (authenticated; they check auth.uid() / ownership):
+--     submit_review, request_return, order_return_request.
+--   Admin / owner RPCs (authenticated; they check is_admin() / is_owner()):
+--     save_discount_code, delete_discount_code, set_review_status, delete_review,
+--     mark_stock_alerts_notified, list_return_requests, update_return_status,
+--     team_members, invite_team_member, update_team_member_role, remove_team_member.
 -- =============================================================================
-revoke all on function public.is_plausible_email(text) from public;
-revoke all on function public.discount_amount(public.discount_type, numeric, numeric) from public;
-revoke all on function public.discount_ineligible_reason(public.discount_codes, numeric) from public;
-revoke all on function public.discount_code_json(uuid) from public;
-revoke all on function public.validate_discount_code(text, numeric) from public;
-revoke all on function public.place_order_with_discount(jsonb) from public;
-revoke all on function public.save_discount_code(uuid, jsonb) from public;
-revoke all on function public.delete_discount_code(uuid) from public;
-revoke all on function public.review_json(uuid) from public;
-revoke all on function public.review_author_name(text) from public;
-revoke all on function public.submit_review(uuid, integer, text, text, text[]) from public;
-revoke all on function public.review_summary(uuid) from public;
-revoke all on function public.set_review_status(uuid, public.review_status) from public;
-revoke all on function public.delete_review(uuid) from public;
-revoke all on function public.stock_alert_json(uuid) from public;
-revoke all on function public.subscribe_stock_alert(uuid, text) from public;
-revoke all on function public.mark_stock_alerts_notified(uuid) from public;
-revoke all on function public.return_can_transition(public.return_status, public.return_status) from public;
-revoke all on function public.return_request_json(uuid) from public;
-revoke all on function public.request_return(uuid, jsonb, text, text, text) from public;
-revoke all on function public.order_return_request(uuid) from public;
-revoke all on function public.list_return_requests(text) from public;
-revoke all on function public.update_return_status(uuid, text, text) from public;
-revoke all on function public.team_member_json(uuid) from public;
-revoke all on function public.active_owner_count() from public;
-revoke all on function public.team_members() from public;
-revoke all on function public.invite_team_member(text, text, public.admin_role) from public;
-revoke all on function public.update_team_member_role(uuid, public.admin_role) from public;
-revoke all on function public.remove_team_member(uuid) from public;
+-- Internal helpers and trigger functions
+revoke execute on function public.discount_amount(public.discount_type, numeric, numeric) from public, anon, authenticated;
+revoke execute on function public.discount_ineligible_reason(public.discount_codes, numeric) from public, anon, authenticated;
+revoke execute on function public.discount_code_json(uuid) from public, anon, authenticated;
+revoke execute on function public.orders_apply_pending_discount() from public, anon, authenticated;
+revoke execute on function public.is_own_review_photo_url(text, uuid) from public, anon, authenticated;
+revoke execute on function public.review_json(uuid) from public, anon, authenticated;
+revoke execute on function public.review_author_name(text) from public, anon, authenticated;
+revoke execute on function public.stock_alert_json(uuid) from public, anon, authenticated;
+revoke execute on function public.variants_notify_back_in_stock() from public, anon, authenticated;
+revoke execute on function public.return_can_transition(public.return_status, public.return_status) from public, anon, authenticated;
+revoke execute on function public.return_request_json(uuid) from public, anon, authenticated;
+revoke execute on function public.team_member_json(uuid) from public, anon, authenticated;
+revoke execute on function public.active_owner_count() from public, anon, authenticated;
+revoke execute on function public.guard_profile_role() from public, anon, authenticated;
+revoke execute on function public.profiles_guard_admin_role() from public, anon, authenticated;
+revoke execute on function public.guard_profile_email() from public, anon, authenticated;
+revoke execute on function public.profiles_sync_email_from_auth() from public, anon, authenticated;
+revoke execute on function public.auth_users_apply_team_invite() from public, anon, authenticated;
 
--- Pure helper referenced by CHECK constraints: must stay executable by every client role.
+-- RPCs and the two helpers that stay callable: revoke first so the default grants do not
+-- linger, then grant exactly what each role needs.
+revoke execute on function public.is_plausible_email(text) from public, anon, authenticated;
+revoke execute on function public.is_owner() from public, anon, authenticated;
+revoke execute on function public.validate_discount_code(text, numeric) from public, anon, authenticated;
+revoke execute on function public.place_order_with_discount(jsonb) from public, anon, authenticated;
+revoke execute on function public.save_discount_code(uuid, jsonb) from public, anon, authenticated;
+revoke execute on function public.delete_discount_code(uuid) from public, anon, authenticated;
+revoke execute on function public.submit_review(uuid, integer, text, text, text[]) from public, anon, authenticated;
+revoke execute on function public.review_summary(uuid) from public, anon, authenticated;
+revoke execute on function public.set_review_status(uuid, public.review_status) from public, anon, authenticated;
+revoke execute on function public.delete_review(uuid) from public, anon, authenticated;
+revoke execute on function public.subscribe_stock_alert(uuid, text) from public, anon, authenticated;
+revoke execute on function public.mark_stock_alerts_notified(uuid) from public, anon, authenticated;
+revoke execute on function public.request_return(uuid, jsonb, text, text, text) from public, anon, authenticated;
+revoke execute on function public.order_return_request(uuid) from public, anon, authenticated;
+revoke execute on function public.list_return_requests(text) from public, anon, authenticated;
+revoke execute on function public.update_return_status(uuid, text, text) from public, anon, authenticated;
+revoke execute on function public.team_members() from public, anon, authenticated;
+revoke execute on function public.invite_team_member(text, text, public.admin_role) from public, anon, authenticated;
+revoke execute on function public.update_team_member_role(uuid, public.admin_role) from public, anon, authenticated;
+revoke execute on function public.remove_team_member(uuid) from public, anon, authenticated;
+
+-- Pure helper referenced by CHECK constraints; RLS helper evaluated by policies.
 grant execute on function public.is_plausible_email(text) to anon, authenticated;
+grant execute on function public.is_owner() to anon, authenticated;
 -- Storefront (guests included)
 grant execute on function public.validate_discount_code(text, numeric) to anon, authenticated;
 grant execute on function public.place_order_with_discount(jsonb) to anon, authenticated;

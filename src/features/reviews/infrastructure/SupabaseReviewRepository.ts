@@ -21,6 +21,7 @@ import type {
 import { REVIEW_MAX_PHOTOS, reviewFormSchema } from '../domain/entities'
 import {
   REVIEW_PHOTO_BUCKET,
+  isOwnReviewPhotoUrl,
   reviewPhotoPath,
   reviewPhotoStoragePath,
   validateReviewPhoto,
@@ -83,7 +84,15 @@ export class SupabaseReviewRepository implements ReviewRepository {
       if (problem) throw new AppError('validation', problem)
     }
 
-    const uploaded = await this.uploadPhotos(auth.user.id, input.photos)
+    const userId = auth.user.id
+    const uploaded = await this.uploadPhotos(userId, input.photos)
+    // submit_review stores only the caller's own uploads (is_own_review_photo_url). Applying
+    // the same rule here turns a mis-configured storage URL into a clear error before the
+    // round-trip, with the uploads cleaned up.
+    if (!uploaded.urls.every((url) => isOwnReviewPhotoUrl(url, userId))) {
+      await this.removeObjects(uploaded.paths)
+      throw new AppError('validation', 'Photos must be uploaded to your own review folder first.')
+    }
     const result = await this.db.rpc('submit_review', {
       p_product_id: input.productId,
       p_rating: parsed.data.rating,
@@ -124,7 +133,8 @@ export class SupabaseReviewRepository implements ReviewRepository {
   }
 
   async remove(id: string): Promise<void> {
-    // The RPC deletes the row and hands back the photo URLs so the objects can go too.
+    // The RPC deletes the row and hands back the photo URLs under the author's own folder so
+    // the objects can go too; reviewPhotoStoragePath keeps only `reviews/<folder>/<file>` paths.
     const urls = unwrap(await this.db.rpc('delete_review', { p_id: id }))
     const paths = urls.map(reviewPhotoStoragePath).filter((path): path is string => path !== null)
     await this.removeObjects(paths)
