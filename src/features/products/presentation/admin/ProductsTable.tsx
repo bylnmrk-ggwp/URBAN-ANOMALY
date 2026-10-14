@@ -81,7 +81,7 @@ const columns: DataTableColumn<Product>[] = [
     cell: (p) => (
       <span className="text-muted-foreground">{pluralize(p.variants.length, 'variant')}</span>
     ),
-    hideBelow: 'lg',
+    hideBelow: 'xl',
   },
   { key: 'category', header: 'Category', cell: (p) => p.categoryName, hideBelow: 'md' },
   { key: 'price', header: 'Price', align: 'right', cell: (p) => <PriceCell product={p} /> },
@@ -91,7 +91,7 @@ const columns: DataTableColumn<Product>[] = [
     key: 'created',
     header: 'Created',
     cell: (p) => <span className="text-muted-foreground">{formatDate(p.createdAt)}</span>,
-    hideBelow: 'lg',
+    hideBelow: 'xl',
   },
   {
     key: 'actions',

@@ -32,20 +32,21 @@ export function AdminBreadcrumbs() {
   const crumbs = deriveAdminCrumbs(pathname)
   const last = crumbs.length - 1
 
+  // Below `md` the topbar only has room for the current page; the full trail returns from `md`.
   return (
     <Breadcrumb>
-      <BreadcrumbList className="text-xs sm:text-sm">
-        <BreadcrumbItem>
+      <BreadcrumbList className="flex-nowrap text-xs whitespace-nowrap sm:text-sm">
+        <BreadcrumbItem className="hidden md:inline-flex">
           <BreadcrumbLink asChild>
             <Link to={routes.admin.dashboard}>Admin</Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
         {crumbs.map((crumb, index) => (
           <Fragment key={crumb.href}>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
+            <BreadcrumbItem className={index === last ? 'min-w-0' : 'hidden md:inline-flex'}>
               {index === last ? (
-                <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                <BreadcrumbPage className="truncate">{crumb.label}</BreadcrumbPage>
               ) : (
                 <BreadcrumbLink asChild>
                   <Link to={crumb.href}>{crumb.label}</Link>

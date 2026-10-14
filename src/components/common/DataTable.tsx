@@ -20,8 +20,11 @@ export interface DataTableColumn<T> {
   header: ReactNode
   cell: (row: T) => ReactNode
   className?: string
-  /** Hide the column on viewports narrower than the given breakpoint. */
-  hideBelow?: 'sm' | 'md' | 'lg'
+  /**
+   * Hide the column on viewports narrower than the given breakpoint. The admin sidebar takes
+   * 16rem from `lg`, so admin content is narrower at 1024 than at 768: wide columns want `xl`.
+   */
+  hideBelow?: 'sm' | 'md' | 'lg' | 'xl'
   /** When set, the header becomes a sort button reporting this key via `onSort`. */
   sortKey?: string
   align?: 'left' | 'right'
@@ -47,6 +50,7 @@ const hideClasses = {
   sm: 'hidden sm:table-cell',
   md: 'hidden md:table-cell',
   lg: 'hidden lg:table-cell',
+  xl: 'hidden xl:table-cell',
 } as const
 
 export function DataTable<T>({

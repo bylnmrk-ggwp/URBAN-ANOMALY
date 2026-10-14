@@ -40,8 +40,9 @@ export default function ReturnsPage() {
       />
 
       <Tabs value={tab} onValueChange={(v) => isTab(v) && setTab(v)}>
-        <div className="overflow-x-auto pb-1">
-          <TabsList variant="line" aria-label="Filter returns by status">
+        {/* Bleeds to the viewport edge below `lg` so a cut-off tab shows the strip scrolls. */}
+        <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+          <TabsList variant="line" className="h-11 lg:h-9" aria-label="Filter returns by status">
             {TABS.map((value) => (
               <TabsTrigger key={value} value={value} className="px-3">
                 {value === 'all' ? 'All' : RETURN_STATUS_LABELS[value]}

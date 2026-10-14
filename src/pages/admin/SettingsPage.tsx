@@ -24,8 +24,8 @@ function SettingsPageContent() {
       />
 
       {settings.isPending ? (
-        <div className="grid gap-6 lg:grid-cols-3" aria-busy="true" aria-label="Loading settings">
-          <div className="space-y-6 lg:col-span-2">
+        <div className="grid gap-6 xl:grid-cols-3" aria-busy="true" aria-label="Loading settings">
+          <div className="space-y-6 xl:col-span-2">
             <Skeleton className="h-72 w-full rounded-lg" />
             <Skeleton className="h-40 w-full rounded-lg" />
             <Skeleton className="h-48 w-full rounded-lg" />

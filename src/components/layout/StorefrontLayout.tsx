@@ -20,8 +20,10 @@ export function StorefrontLayout() {
     return installPreviewReceiver()
   }, [])
 
+  // The product page's fixed "Add to cart" bar (below `lg`) covers the bottom 7rem of the shell;
+  // pad the whole shell, footer included, whenever that bar is mounted.
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col max-lg:has-data-[slot=mobile-add-to-cart-bar]:pb-28">
       <ThemeApplier />
       <a
         href="#main"

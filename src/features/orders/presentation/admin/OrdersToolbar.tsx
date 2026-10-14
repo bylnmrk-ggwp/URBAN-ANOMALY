@@ -32,8 +32,9 @@ export function OrdersToolbar({
   return (
     <div className="space-y-3">
       <Tabs value={status} onValueChange={(v) => isOrderTab(v) && onStatusChange(v)}>
-        <div className="overflow-x-auto pb-1">
-          <TabsList variant="line" aria-label="Filter orders by status">
+        {/* Bleeds to the viewport edge below `lg` so a cut-off tab shows the strip scrolls. */}
+        <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+          <TabsList variant="line" className="h-11 lg:h-9" aria-label="Filter orders by status">
             {ORDER_TABS.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value} className="px-3">
                 {tab.label}

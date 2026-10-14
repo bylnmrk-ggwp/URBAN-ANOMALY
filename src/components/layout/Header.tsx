@@ -73,7 +73,7 @@ export function Header() {
           aria-label={`${name} home`}
         >
           {logoUrl ? (
-            <img src={logoUrl} alt={name} className="h-6 w-auto" />
+            <img src={logoUrl} alt={name} className="max-h-6 w-auto" />
           ) : (
             <BrandWordmark alt={name} />
           )}

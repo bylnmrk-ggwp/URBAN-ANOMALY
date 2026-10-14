@@ -90,8 +90,8 @@ export default function DashboardPage() {
           <KpiCards kpis={data?.kpis} isLoading={isLoading} />
           <ContentStatusCard />
           <SalesChart series={data?.salesSeries} isLoading={isLoading} days={days} />
-          <div className="grid min-w-0 gap-6 lg:grid-cols-3">
-            <div className="min-w-0 space-y-6 lg:col-span-2">
+          <div className="grid min-w-0 gap-6 xl:grid-cols-3">
+            <div className="min-w-0 space-y-6 xl:col-span-2">
               <RecentOrdersTable orders={data?.recentOrders} isLoading={isLoading} />
               <BestSellersList items={data?.bestSellers} isLoading={isLoading} />
             </div>

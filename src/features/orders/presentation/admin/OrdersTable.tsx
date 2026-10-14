@@ -49,14 +49,14 @@ const columns: DataTableColumn<OrderSummary>[] = [
     cell: (o) => (
       <span className="text-muted-foreground whitespace-nowrap">{formatDateTime(o.createdAt)}</span>
     ),
-    hideBelow: 'lg',
+    hideBelow: 'xl',
   },
   {
     key: 'items',
     header: 'Items',
     align: 'right',
     cell: (o) => <span className="tabular-nums">{o.itemCount}</span>,
-    hideBelow: 'md',
+    hideBelow: 'xl',
   },
   {
     key: 'total',
@@ -68,13 +68,13 @@ const columns: DataTableColumn<OrderSummary>[] = [
     key: 'method',
     header: 'Method',
     cell: (o) => <PaymentMethodBadge method={o.paymentMethod} />,
-    hideBelow: 'lg',
+    hideBelow: 'xl',
   },
   {
     key: 'payment',
     header: 'Payment',
     cell: (o) => <PaymentStatusBadge status={o.paymentStatus} />,
-    hideBelow: 'md',
+    hideBelow: 'xl',
   },
   { key: 'status', header: 'Status', cell: (o) => <OrderStatusBadge status={o.status} /> },
   {
