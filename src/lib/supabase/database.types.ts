@@ -862,6 +862,339 @@ export type Database = {
           },
         ]
       }
+      /** Round 2 (0006_features_round2.sql). Admins read; owners write through RPCs. */
+      discount_codes: {
+        Row: {
+          id: string
+          code: string
+          type: Database['public']['Enums']['discount_type']
+          value: number
+          min_subtotal: number
+          max_uses: number | null
+          used_count: number
+          starts_at: string | null
+          ends_at: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          type: Database['public']['Enums']['discount_type']
+          value: number
+          min_subtotal?: number
+          max_uses?: number | null
+          used_count?: number
+          starts_at?: string | null
+          ends_at?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          code?: string
+          type?: Database['public']['Enums']['discount_type']
+          value?: number
+          min_subtotal?: number
+          max_uses?: number | null
+          used_count?: number
+          starts_at?: string | null
+          ends_at?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      discount_redemptions: {
+        Row: {
+          id: string
+          discount_id: string
+          order_id: string
+          code: string
+          amount: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          discount_id: string
+          order_id: string
+          code: string
+          amount: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          discount_id?: string
+          order_id?: string
+          code?: string
+          amount?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'discount_redemptions_discount_id_fkey'
+            columns: ['discount_id']
+            isOneToOne: false
+            referencedRelation: 'discount_codes'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'discount_redemptions_order_id_fkey'
+            columns: ['order_id']
+            isOneToOne: true
+            referencedRelation: 'orders'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      /** Approved rows are public, authors see their own, admins everything; writes via RPCs. */
+      reviews: {
+        Row: {
+          id: string
+          product_id: string
+          user_id: string | null
+          author_name: string
+          rating: number
+          title: string
+          body: string
+          photo_urls: string[]
+          is_verified_purchase: boolean
+          status: Database['public']['Enums']['review_status']
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          user_id?: string | null
+          author_name: string
+          rating: number
+          title: string
+          body: string
+          photo_urls?: string[]
+          is_verified_purchase?: boolean
+          status?: Database['public']['Enums']['review_status']
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          user_id?: string | null
+          author_name?: string
+          rating?: number
+          title?: string
+          body?: string
+          photo_urls?: string[]
+          is_verified_purchase?: boolean
+          status?: Database['public']['Enums']['review_status']
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'reviews_product_id_fkey'
+            columns: ['product_id']
+            isOneToOne: false
+            referencedRelation: 'products'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'reviews_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      /** Back-in-stock subscriptions. Admin read only; subscribe is an RPC. */
+      stock_alerts: {
+        Row: {
+          id: string
+          variant_id: string
+          email: string
+          status: Database['public']['Enums']['stock_alert_status']
+          created_at: string
+          notified_at: string | null
+        }
+        Insert: {
+          id?: string
+          variant_id: string
+          email: string
+          status?: Database['public']['Enums']['stock_alert_status']
+          created_at?: string
+          notified_at?: string | null
+        }
+        Update: {
+          id?: string
+          variant_id?: string
+          email?: string
+          status?: Database['public']['Enums']['stock_alert_status']
+          created_at?: string
+          notified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'stock_alerts_variant_id_fkey'
+            columns: ['variant_id']
+            isOneToOne: false
+            referencedRelation: 'product_variants'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      /** Owner of the order or admins read; writes via RPCs. */
+      return_requests: {
+        Row: {
+          id: string
+          order_id: string
+          user_id: string | null
+          reason: Database['public']['Enums']['return_reason']
+          resolution: Database['public']['Enums']['return_resolution']
+          note: string
+          status: Database['public']['Enums']['return_status']
+          admin_note: string
+          refund_amount: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          user_id?: string | null
+          reason: Database['public']['Enums']['return_reason']
+          resolution: Database['public']['Enums']['return_resolution']
+          note?: string
+          status?: Database['public']['Enums']['return_status']
+          admin_note?: string
+          refund_amount?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          user_id?: string | null
+          reason?: Database['public']['Enums']['return_reason']
+          resolution?: Database['public']['Enums']['return_resolution']
+          note?: string
+          status?: Database['public']['Enums']['return_status']
+          admin_note?: string
+          refund_amount?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'return_requests_order_id_fkey'
+            columns: ['order_id']
+            isOneToOne: false
+            referencedRelation: 'orders'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'return_requests_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      return_items: {
+        Row: {
+          id: string
+          return_id: string
+          order_item_id: string
+          product_name: string
+          size: string
+          color_name: string
+          quantity: number
+          unit_price: number
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          return_id: string
+          order_item_id: string
+          product_name: string
+          size: string
+          color_name: string
+          quantity: number
+          unit_price: number
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          return_id?: string
+          order_item_id?: string
+          product_name?: string
+          size?: string
+          color_name?: string
+          quantity?: number
+          unit_price?: number
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'return_items_return_id_fkey'
+            columns: ['return_id']
+            isOneToOne: false
+            referencedRelation: 'return_requests'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'return_items_order_item_id_fkey'
+            columns: ['order_item_id']
+            isOneToOne: false
+            referencedRelation: 'order_items'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      /** Pending staff invitations; applied by trigger when the e-mail signs up. */
+      team_invites: {
+        Row: {
+          id: string
+          email: string
+          full_name: string
+          role: Database['public']['Enums']['admin_role']
+          invited_by: string | null
+          created_at: string
+          accepted_at: string | null
+        }
+        Insert: {
+          id?: string
+          email: string
+          full_name?: string
+          role?: Database['public']['Enums']['admin_role']
+          invited_by?: string | null
+          created_at?: string
+          accepted_at?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string
+          full_name?: string
+          role?: Database['public']['Enums']['admin_role']
+          invited_by?: string | null
+          created_at?: string
+          accepted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'team_invites_invited_by_fkey'
+            columns: ['invited_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       /** Orders joined with their item count. RLS of `orders` applies (security_invoker). */
@@ -930,6 +1263,44 @@ export type Database = {
           published: Json | null
           published_version: number | null
           published_at: string | null
+        }
+        Relationships: []
+      }
+      /** Reviews joined with product name/slug (0006). RLS of `reviews` applies (security_invoker). */
+      review_rows: {
+        Row: {
+          id: string
+          product_id: string
+          product_name: string
+          product_slug: string
+          user_id: string | null
+          author_name: string
+          rating: number
+          title: string
+          body: string
+          photo_urls: string[]
+          is_verified_purchase: boolean
+          status: Database['public']['Enums']['review_status']
+          created_at: string
+          updated_at: string
+        }
+        Relationships: []
+      }
+      /** Back-in-stock alerts joined with variant/product info (0006). Admin only. */
+      stock_alert_rows: {
+        Row: {
+          id: string
+          product_id: string
+          product_name: string
+          product_slug: string
+          variant_id: string
+          sku: string
+          size: string
+          color_name: string
+          email: string
+          status: Database['public']['Enums']['stock_alert_status']
+          created_at: string
+          notified_at: string | null
         }
         Relationships: []
       }
@@ -1060,6 +1431,99 @@ export type Database = {
         Args: { p_order_number: string; p_email: string }
         Returns: Json
       }
+      /** Round 2 (0006_features_round2.sql): discounts. */
+      validate_discount_code: {
+        Args: { p_code: string; p_subtotal: number }
+        Returns: Json
+      }
+      place_order_with_discount: {
+        Args: { payload: Json }
+        Returns: Json
+      }
+      save_discount_code: {
+        Args: { p_id: string | null; p_payload: Json }
+        Returns: Json
+      }
+      delete_discount_code: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      /** Round 2: reviews. */
+      submit_review: {
+        Args: {
+          p_product_id: string
+          p_rating: number
+          p_title: string
+          p_body: string
+          p_photo_urls: string[]
+        }
+        Returns: Json
+      }
+      review_summary: {
+        Args: { p_product_id: string }
+        Returns: Json
+      }
+      set_review_status: {
+        Args: { p_id: string; p_status: Database['public']['Enums']['review_status'] }
+        Returns: Json
+      }
+      delete_review: {
+        Args: { p_id: string }
+        Returns: string[]
+      }
+      /** Round 2: back-in-stock alerts. */
+      subscribe_stock_alert: {
+        Args: { p_variant_id: string; p_email: string }
+        Returns: Json
+      }
+      mark_stock_alerts_notified: {
+        Args: { p_variant_id: string }
+        Returns: number
+      }
+      /** Round 2: returns. */
+      request_return: {
+        Args: {
+          p_order_id: string
+          p_items: Json
+          p_reason: string
+          p_resolution: string
+          p_note: string
+        }
+        Returns: Json
+      }
+      order_return_request: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
+      list_return_requests: {
+        Args: { p_status: string }
+        Returns: Json
+      }
+      update_return_status: {
+        Args: { p_id: string; p_status: string; p_admin_note: string }
+        Returns: Json
+      }
+      /** Round 2: team. */
+      team_members: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      invite_team_member: {
+        Args: {
+          p_email: string
+          p_full_name: string
+          p_role: Database['public']['Enums']['admin_role']
+        }
+        Returns: Json
+      }
+      update_team_member_role: {
+        Args: { p_id: string; p_role: Database['public']['Enums']['admin_role'] }
+        Returns: Json
+      }
+      remove_team_member: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       product_status: 'draft' | 'published' | 'archived'
@@ -1098,6 +1562,8 @@ export type Database = {
         | 'order_issue'
         /** 0004_order_emails.sql */
         | 'order_update'
+        /** 0006_features_round2.sql */
+        | 'back_in_stock'
       cms_document_kind: 'page' | 'navigation' | 'theme' | 'announcement'
       cms_audit_action:
         | 'save_draft'
@@ -1107,6 +1573,13 @@ export type Database = {
         | 'media_delete'
         | 'create_page'
         | 'delete_page'
+      /** Round 2 (0006_features_round2.sql) */
+      discount_type: 'percent' | 'fixed'
+      review_status: 'pending' | 'approved' | 'rejected'
+      stock_alert_status: 'waiting' | 'notified'
+      return_status: 'requested' | 'approved' | 'rejected' | 'received' | 'refunded'
+      return_resolution: 'refund' | 'exchange'
+      return_reason: 'wrong_size' | 'damaged' | 'not_as_described' | 'changed_mind' | 'other'
     }
     CompositeTypes: {
       [_ in never]: never

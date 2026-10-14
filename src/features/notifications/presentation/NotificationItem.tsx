@@ -2,6 +2,7 @@ import {
   CircleAlert,
   CircleCheck,
   Mail,
+  PackageCheck,
   ShoppingBag,
   TriangleAlert,
   type LucideIcon,
@@ -17,6 +18,7 @@ const typeIcons: Record<NotificationType, LucideIcon> = {
   low_stock: TriangleAlert,
   order_issue: CircleAlert,
   order_update: Mail,
+  back_in_stock: PackageCheck,
 }
 
 const typeTone: Record<NotificationType, string> = {
@@ -25,6 +27,7 @@ const typeTone: Record<NotificationType, string> = {
   low_stock: 'text-warning',
   order_issue: 'text-destructive',
   order_update: 'text-info',
+  back_in_stock: 'text-success',
 }
 
 interface NotificationItemProps {

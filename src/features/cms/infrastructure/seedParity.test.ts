@@ -8,7 +8,10 @@ import {
 import { parseContent, RESERVED_PAGE_SLUGS } from '@/features/cms/domain/documents'
 
 // Vite `?raw` import: no node:fs needed, and the path is checked at transform time.
-import sql from '../../../../supabase/migrations/0002_cms.sql?raw'
+import rawSql from '../../../../supabase/migrations/0002_cms.sql?raw'
+
+// Checkouts with core.autocrlf=true hand us CRLF; the seed regexes below anchor on `\n`.
+const sql = rawSql.replace(/\r\n/g, '\n')
 
 /**
  * The SQL seed in 0002_cms.sql is a hand-maintained copy of the TypeScript defaults. These

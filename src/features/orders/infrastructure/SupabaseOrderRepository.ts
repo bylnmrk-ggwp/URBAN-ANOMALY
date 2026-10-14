@@ -94,10 +94,16 @@ export class SupabaseOrderRepository implements OrderRepository {
         quantity: i.quantity,
       })),
       customer_note: input.customerNote,
-      // Re-validated by `place_order`; the browser never computes the discount amount.
+      // The browser never computes the discount amount. With a code the order goes through
+      // `place_order_with_discount` (0006_features_round2.sql), which validates the code,
+      // calls `place_order` and records the redemption in one transaction.
       discount_code: input.discountCode ?? null,
     }
-    const data = unwrap(await this.db.rpc('place_order', { payload }))
+    const data = unwrap(
+      input.discountCode
+        ? await this.db.rpc('place_order_with_discount', { payload })
+        : await this.db.rpc('place_order', { payload }),
+    )
     const result = parseRpcJson(placeOrderResultSchema, data, 'place_order')
     if (result.order.user_id === null) rememberGuestOrder(result.order)
     const order = toOrderFromJoin(result.order)

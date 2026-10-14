@@ -20,6 +20,7 @@ import type {
   DashboardSummary,
   SalesPoint,
 } from '@/features/dashboard/domain/entities'
+import type { AppliedDiscount, DiscountCode } from '@/features/discounts/domain/entities'
 import type { InventoryMovement, InventoryRow } from '@/features/inventory/domain/entities'
 import { deriveStockStatus } from '@/features/inventory/domain/entities'
 import type { AppNotification } from '@/features/notifications/domain/entities'
@@ -36,7 +37,11 @@ import type {
   ProductVariant,
 } from '@/features/products/domain/entities'
 import { PRODUCT_SIZES } from '@/features/products/domain/entities'
+import type { ReturnRequest } from '@/features/returns/domain/entities'
+import type { Review, ReviewSummary } from '@/features/reviews/domain/entities'
 import type { StoreSettings } from '@/features/settings/domain/entities'
+import type { StockAlert } from '@/features/stock-alerts/domain/entities'
+import type { TeamMember } from '@/features/team/domain/entities'
 import { AppError } from '@/lib/errors'
 import type { AppErrorCode } from '@/lib/errors'
 
@@ -945,6 +950,244 @@ export function toAuditEntry(row: CmsAuditRow): AuditEntry {
     documentKey,
     details: row.details,
     createdAt: row.created_at,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Round 2 (0006_features_round2.sql): discounts, reviews, stock alerts, returns, team
+// ---------------------------------------------------------------------------
+
+export type DiscountCodeRow = Tables<'discount_codes'>
+export type ReviewRow = Views<'review_rows'>
+export type StockAlertRow = Views<'stock_alert_rows'>
+
+const discountTypeSchema = z.enum(['percent', 'fixed'])
+const reviewStatusSchema = z.enum(['pending', 'approved', 'rejected'])
+const stockAlertStatusSchema = z.enum(['waiting', 'notified'])
+const returnStatusSchema = z.enum(['requested', 'approved', 'rejected', 'received', 'refunded'])
+const returnResolutionSchema = z.enum(['refund', 'exchange'])
+const returnReasonSchema = z.enum([
+  'wrong_size',
+  'damaged',
+  'not_as_described',
+  'changed_mind',
+  'other',
+])
+const adminRoleSchema = z.enum(['owner', 'staff'])
+
+/** `to_jsonb(discount_codes)` as returned by `save_discount_code`; identical to the table row. */
+export const discountCodeJsonSchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  type: discountTypeSchema,
+  value: z.number(),
+  min_subtotal: z.number(),
+  max_uses: z.number().nullable(),
+  used_count: z.number(),
+  starts_at: z.string().nullable(),
+  ends_at: z.string().nullable(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+
+/** Result of `validate_discount_code` / shape of `AppliedDiscount`. */
+export const appliedDiscountJsonSchema = z.object({
+  code: z.string(),
+  type: discountTypeSchema,
+  value: z.number(),
+  amount: z.number(),
+})
+
+export function toDiscountCode(row: DiscountCodeRow): DiscountCode {
+  return {
+    id: row.id,
+    code: row.code,
+    type: row.type,
+    value: toNumber(row.value),
+    minSubtotal: toNumber(row.min_subtotal),
+    maxUses: row.max_uses,
+    usedCount: row.used_count,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+  }
+}
+
+export function toAppliedDiscount(
+  json: z.infer<typeof appliedDiscountJsonSchema>,
+): AppliedDiscount {
+  return { code: json.code, type: json.type, value: json.value, amount: json.amount }
+}
+
+/** `to_jsonb(review_rows)` produced by `review_json(uuid)`; identical to the view row. */
+export const reviewJsonSchema = z.object({
+  id: z.string(),
+  product_id: z.string(),
+  product_name: z.string(),
+  product_slug: z.string(),
+  user_id: z.string().nullable(),
+  author_name: z.string(),
+  rating: z.number(),
+  title: z.string(),
+  body: z.string(),
+  photo_urls: z.array(z.string()),
+  is_verified_purchase: z.boolean(),
+  status: reviewStatusSchema,
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+
+function toReviewRating(value: number): Review['rating'] {
+  if (Number.isInteger(value) && value >= 1 && value <= 5) return value as Review['rating']
+  throw new AppError('unknown', `Unexpected review rating "${value}" received from the database.`)
+}
+
+export function toReview(row: ReviewRow): Review {
+  return {
+    id: row.id,
+    productId: row.product_id,
+    productName: row.product_name,
+    productSlug: row.product_slug,
+    userId: row.user_id,
+    authorName: row.author_name,
+    rating: toReviewRating(row.rating),
+    title: row.title,
+    body: row.body,
+    photoUrls: [...row.photo_urls],
+    isVerifiedPurchase: row.is_verified_purchase,
+    status: row.status,
+    createdAt: row.created_at,
+  }
+}
+
+/** Produced by `review_summary(uuid)`. */
+export const reviewSummaryJsonSchema = z.object({
+  product_id: z.string(),
+  average: z.number(),
+  count: z.number(),
+  distribution: z.tuple([z.number(), z.number(), z.number(), z.number(), z.number()]),
+})
+
+export function toReviewSummary(json: z.infer<typeof reviewSummaryJsonSchema>): ReviewSummary {
+  return {
+    productId: json.product_id,
+    average: json.average,
+    count: json.count,
+    distribution: [...json.distribution],
+  }
+}
+
+/** `to_jsonb(stock_alert_rows)` produced by `stock_alert_json(uuid)`; identical to the view row. */
+export const stockAlertJsonSchema = z.object({
+  id: z.string(),
+  product_id: z.string(),
+  product_name: z.string(),
+  product_slug: z.string(),
+  variant_id: z.string(),
+  sku: z.string(),
+  size: z.string(),
+  color_name: z.string(),
+  email: z.string(),
+  status: stockAlertStatusSchema,
+  created_at: z.string(),
+  notified_at: z.string().nullable(),
+})
+
+export function toStockAlert(row: StockAlertRow): StockAlert {
+  return {
+    id: row.id,
+    productId: row.product_id,
+    productName: row.product_name,
+    productSlug: row.product_slug,
+    variantId: row.variant_id,
+    sku: row.sku,
+    size: toProductSize(row.size),
+    colorName: row.color_name,
+    email: row.email,
+    status: row.status,
+    createdAt: row.created_at,
+    notifiedAt: row.notified_at,
+  }
+}
+
+/** Produced by `return_request_json(uuid)`; returned by every returns RPC. */
+export const returnRequestJsonSchema = z.object({
+  id: z.string(),
+  order_id: z.string(),
+  order_number: z.string(),
+  customer_name: z.string(),
+  customer_email: z.string(),
+  user_id: z.string().nullable(),
+  items: z.array(
+    z.object({
+      order_item_id: z.string(),
+      product_name: z.string(),
+      size: z.string(),
+      color_name: z.string(),
+      quantity: z.number(),
+      unit_price: z.number(),
+    }),
+  ),
+  reason: returnReasonSchema,
+  resolution: returnResolutionSchema,
+  note: z.string(),
+  status: returnStatusSchema,
+  admin_note: z.string(),
+  refund_amount: z.number(),
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+export const returnRequestListJsonSchema = z.array(returnRequestJsonSchema)
+
+export function toReturnRequest(json: z.infer<typeof returnRequestJsonSchema>): ReturnRequest {
+  return {
+    id: json.id,
+    orderId: json.order_id,
+    orderNumber: json.order_number,
+    customerName: json.customer_name,
+    customerEmail: json.customer_email,
+    items: json.items.map((item) => ({
+      orderItemId: item.order_item_id,
+      productName: item.product_name,
+      size: item.size,
+      colorName: item.color_name,
+      quantity: item.quantity,
+      unitPrice: item.unit_price,
+    })),
+    reason: json.reason,
+    resolution: json.resolution,
+    note: json.note,
+    status: json.status,
+    adminNote: json.admin_note,
+    refundAmount: json.refund_amount,
+    createdAt: json.created_at,
+    updatedAt: json.updated_at,
+  }
+}
+
+/** Produced by `team_member_json(uuid)`: an admin profile or a pending invite. */
+export const teamMemberJsonSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  full_name: z.string(),
+  role: adminRoleSchema,
+  status: z.enum(['active', 'invited']),
+  last_active_at: z.string().nullable(),
+  created_at: z.string(),
+})
+export const teamMemberListJsonSchema = z.array(teamMemberJsonSchema)
+
+export function toTeamMember(json: z.infer<typeof teamMemberJsonSchema>): TeamMember {
+  return {
+    id: json.id,
+    email: json.email,
+    fullName: json.full_name,
+    role: json.role,
+    status: json.status,
+    lastActiveAt: json.last_active_at,
+    createdAt: json.created_at,
   }
 }
 

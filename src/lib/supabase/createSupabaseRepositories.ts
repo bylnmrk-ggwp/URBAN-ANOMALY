@@ -10,13 +10,11 @@ import { SupabaseNotificationRepository } from '@/features/notifications/infrast
 import { SupabaseOrderRepository } from '@/features/orders/infrastructure/SupabaseOrderRepository'
 import { SupabaseProductRepository } from '@/features/products/infrastructure/SupabaseProductRepository'
 import { SupabaseSettingsRepository } from '@/features/settings/infrastructure/SupabaseSettingsRepository'
-// Agent C (admin ops): placeholder adapters until the discounts/team schema ships.
+// Round 2 adapters, backed by supabase/migrations/0006_features_round2.sql.
 import { SupabaseDiscountRepository } from '@/features/discounts/infrastructure/SupabaseDiscountRepository'
 import { SupabaseTeamRepository } from '@/features/team/infrastructure/SupabaseTeamRepository'
-// Agent B (reviews + returns): placeholder adapters until the schema ships.
 import { SupabaseReturnRepository } from '@/features/returns/infrastructure/SupabaseReturnRepository'
 import { SupabaseReviewRepository } from '@/features/reviews/infrastructure/SupabaseReviewRepository'
-// Agent A (storefront commerce): placeholder adapter until the stock-alerts schema ships.
 import { SupabaseStockAlertRepository } from '@/features/stock-alerts/infrastructure/SupabaseStockAlertRepository'
 
 /**
@@ -36,12 +34,10 @@ export function createSupabaseRepositories(): Repositories {
     dashboard: new SupabaseDashboardRepository(),
     cms: new SupabaseCmsRepository(),
     media: new SupabaseMediaRepository(),
-    // Agent C (admin ops)
-    // Agent A: storefront commerce
+    // Round 2 (0006_features_round2.sql)
     stockAlerts: new SupabaseStockAlertRepository(),
     discounts: new SupabaseDiscountRepository(),
     team: new SupabaseTeamRepository(),
-    // Agent B (reviews + returns)
     reviews: new SupabaseReviewRepository(),
     returns: new SupabaseReturnRepository(),
   }

@@ -78,6 +78,7 @@ drift between SQL and TypeScript.
 | `src/lib/supabase/createSupabaseRepositories.ts`       | Factory used by `src/config/repositories.ts` when `VITE_DATA_MODE=supabase`.              |
 | `src/features/*/infrastructure/Supabase*Repository.ts` | One class per domain repository interface.                                                |
 | `supabase/migrations/0001_schema.sql`                  | Schema, RLS, triggers, SQL functions, realtime, storage bucket.                           |
+| `supabase/migrations/0006_features_round2.sql`         | Discounts, reviews, back-in-stock alerts, returns and team (section 12).                  |
 | `supabase/functions/README.md`                         | Spec for the Edge Functions that are not written yet.                                     |
 
 Presentation code never imports from `@/lib/supabase`; everything goes through
@@ -138,12 +139,19 @@ forbidden, `invalid_credentials` -> unauthorized "Incorrect email or password.",
 
 ### `place_order` payload (round 2)
 
-The payload also carries `discount_code: string | null`. The function must look the code up in
-a `discount_codes` table (not yet migrated — see section 11), apply `discountIneligibleReason`
-semantics server-side (active, window, usage limit, minimum subtotal), set `orders.discount`,
-compute `total = subtotal + shipping_fee - discount` and increment `used_count` in the same
-transaction. An invalid code raises `VA001` with the user-facing reason. Until the table exists
-the function should ignore the key (or raise `VA001 'That code is not valid.'` when non-null).
+The payload also carries `discount_code: string | null`. `place_order` itself ignores the key.
+When a code is present the client calls `place_order_with_discount(payload)` instead
+(`0006_features_round2.sql`): it locks the `discount_codes` row, sets the transaction-local
+GUC `app.discount_id` and calls `place_order`. The `BEFORE INSERT` trigger
+`orders_apply_pending_discount` on `orders` reads the GUC, applies `discountIneligibleReason`
+semantics against the server-computed subtotal (active, window, usage limit, minimum
+subtotal), and writes `orders.discount` and `total = subtotal + shipping_fee - discount`
+before the row lands, so the returned `order` already carries the discount. The wrapper then
+increments `used_count` and inserts a `discount_redemptions` row. An invalid code raises
+`VA001` with the user-facing reason and nothing is written. `place_order` is never redefined,
+so later overrides of it (same signature) are picked up automatically. The only visible
+difference from the mock is cosmetic: the admin "New order" notification text, written inside
+`place_order`, quotes the pre-discount total.
 
 ### Guest checkout
 
@@ -295,12 +303,87 @@ Adds `products.seo_title` (<= 70) and `products.seo_description` (<= 160), both 
 default ''`. `save_product` must copy `seo_title` / `seo_description` from the payload (the
 client already sends them); the mapper falls back to `''` when the columns are absent.
 
-### Not yet implemented in Supabase mode
+Discount codes and team management are implemented in `0006_features_round2.sql`; see
+section 12.
 
-- Discount codes: no table/RPCs yet. `SupabaseDiscountRepository` throws
-  `AppError('unknown', 'Discounts are not available in Supabase mode yet.')`. Suggested schema:
-  `discount_codes(id, code unique, type, value, min_subtotal, max_uses, used_count, starts_at,
-ends_at, is_active, created_at)` with a public `validate_discount(code, subtotal)` RPC and
-  admin CRUD via RLS (`is_owner()`).
-- Team management: `SupabaseTeamRepository` throws the same way. Invites need an Edge Function
-  (service role) to create the auth user and set `profiles.admin_role`.
+## 12. Round 2 features (`supabase/migrations/0006_features_round2.sql`)
+
+Discount codes, product reviews, back-in-stock alerts, returns/exchanges and team management.
+Apply after `0001_schema.sql`, `0003_admin_roles.sql` (`is_owner()`, `profiles.admin_role`) and
+`0004_order_emails.sql`; the file is idempotent and can be re-run. It adds the enums
+`discount_type`, `review_status`, `stock_alert_status`, `return_status`, `return_resolution`,
+`return_reason`, the notification type `back_in_stock`, and one storage bucket. Regenerate
+types afterwards exactly as in section 3. The `Mock*Repository` of each feature is the
+behavioural specification: the RPCs raise the same messages with the custom SQLSTATE codes
+from section 6.
+
+### Tables and views
+
+| Table / view            | Domain type                     | Mapper                       | Notes                                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `discount_codes`        | `DiscountCode`                  | `toDiscountCode`             | `code` unique, `^[A-Z0-9-]{3,20}$`; `type` percent/fixed (`value <= 100` for percent); `min_subtotal`, `max_uses` (null = unlimited), `used_count`, `starts_at`/`ends_at`, `is_active`. RLS: admins select, owners insert/update/delete. Visitors never read it: they call `validate_discount_code`.                         |
+| `discount_redemptions`  | -                               | -                            | One row per order that used a code (`order_id` unique, `amount`). Admin read only; written by `place_order_with_discount`. Keeps `used_count` auditable.                                                                                                                                                                     |
+| `reviews`               | `Review`                        | `toReview` (via view)        | `product_id`, `user_id`, denormalised `author_name` ("Maria S."), `rating` 1-5, `title` 3-80, `body` 10-1000, `photo_urls text[]` (max 3), `is_verified_purchase`, `status` (default `pending`). Unique `(product_id, user_id)`. RLS select: approved, or own, or admin. No client write policies.                           |
+| view `review_rows`      | `Review`                        | `toReview`                   | `reviews` joined with `products.name` / `slug` (`security_invoker`). Storefront reads `status = approved`; the admin table searches `product_name`, `author_name`, `title`, `body`.                                                                                                                                          |
+| `stock_alerts`          | `StockAlert`                    | `toStockAlert` (via view)    | `variant_id`, `email`, `status` waiting/notified, `notified_at`. Partial unique `(variant_id, lower(email)) where status = 'waiting'` so a duplicate subscription resolves to the existing row. Admin read only.                                                                                                             |
+| view `stock_alert_rows` | `StockAlert`                    | `toStockAlert`               | Alerts joined with product name/slug, SKU, size and colour for the grouped admin page.                                                                                                                                                                                                                                       |
+| `return_requests`       | `ReturnRequest`                 | `toReturnRequest` (RPC json) | `order_id`, `user_id`, `reason`, `resolution`, `note` (<= 500), `status` (default `requested`), `admin_note`, `refund_amount`. Partial unique on `order_id` while the status is `requested`/`approved`/`received` (one open request per order). RLS select: owner or admin.                                                  |
+| `return_items`          | `ReturnItem`                    | `toReturnRequest`            | Snapshot of the returned lines: `order_item_id`, `product_name`, `size`, `color_name`, `quantity`, `unit_price`, `sort_order`. Unique `(return_id, order_item_id)`.                                                                                                                                                          |
+| `team_invites`          | `TeamMember` (status `invited`) | `toTeamMember` (RPC json)    | `email` (partial unique while `accepted_at is null`), `full_name`, `role` (`admin_role`), `invited_by`, `accepted_at`. Active members are `profiles` rows with `role = 'admin'`; the `BEFORE INSERT` trigger `profiles_apply_team_invite` promotes a new profile whose e-mail has a pending invite and stamps `accepted_at`. |
+
+### RPCs
+
+All `SECURITY DEFINER`; the first statement checks `auth.uid()`, `is_admin()` or `is_owner()`
+as noted. JSON results are validated client-side by the `*JsonSchema` exports in `mappers.ts`.
+
+| Function                                                               | Who                 | What                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `validate_discount_code(p_code, p_subtotal) -> jsonb`                  | anon, authenticated | `{ code, type, value, amount }` or `VA001` with the reason (`That code is not valid.`, `This code has expired.`, ...). `amount` mirrors `computeDiscountAmount` (capped at the subtotal, 2 dp).                                                                                                                               |
+| `place_order_with_discount(payload) -> jsonb`                          | anon, authenticated | Same payload and result as `place_order`; see section 6.                                                                                                                                                                                                                                                                      |
+| `save_discount_code(p_id, p_payload) -> jsonb`                         | owner               | Create (`p_id` null) or update. Normalises the code to upper case, validates like `discountFormSchema`, `CF001 'A discount with this code already exists.'`, `NF001` on an unknown id.                                                                                                                                        |
+| `delete_discount_code(p_id)`                                           | owner               | `NF001` when missing.                                                                                                                                                                                                                                                                                                         |
+| `submit_review(p_product_id, p_rating, p_title, p_body, p_photo_urls)` | authenticated       | `FB001 'Sign in to write a review.'`, `NF001` product, `VA001` for the `reviewFormSchema` rules and more than 3 photos, `CF001 'You have already reviewed this product.'`. Sets `is_verified_purchase` when a delivered order of the caller contains the product. Status starts `pending`.                                    |
+| `review_summary(p_product_id) -> jsonb`                                | anon, authenticated | `{ product_id, average (1 dp), count, distribution[5] }` over approved reviews.                                                                                                                                                                                                                                               |
+| `set_review_status(p_id, p_status) -> jsonb`                           | admin               | Moderation; returns the review json.                                                                                                                                                                                                                                                                                          |
+| `delete_review(p_id) -> text[]`                                        | admin               | Deletes the row and returns its photo URLs; the client then removes the storage objects (best effort).                                                                                                                                                                                                                        |
+| `subscribe_stock_alert(p_variant_id, p_email) -> jsonb`                | anon, authenticated | `VA001 'Enter a valid email address.'`, `NF001 'Variant was not found.'` unless the product is published; a duplicate waiting subscription returns the existing alert.                                                                                                                                                        |
+| `mark_stock_alerts_notified(p_variant_id) -> integer`                  | admin               | Marks the variant's waiting alerts notified and returns how many.                                                                                                                                                                                                                                                             |
+| `request_return(p_order_id, p_items, p_reason, p_resolution, p_note)`  | authenticated       | `p_items = [{ order_item_id, quantity }]`. Owner of the order only (`NF001` otherwise), `status = delivered`, within 14 days of the `delivered` status event (else `updated_at`), one open request per order (`CF001`), items must belong to the order with `quantity <= ordered`. Computes `refund_amount`; notifies admins. |
+| `order_return_request(p_order_id) -> jsonb`                            | authenticated       | Latest request for the order, or `null` when there is none or the caller is neither the owner nor an admin.                                                                                                                                                                                                                   |
+| `list_return_requests(p_status) -> jsonb`                              | admin               | `'all'` or a `return_status`; newest first.                                                                                                                                                                                                                                                                                   |
+| `update_return_status(p_id, p_status, p_admin_note) -> jsonb`          | admin               | Enforces `RETURN_STATUS_TRANSITIONS` (`VA001 'Invalid return status transition.'`). On `refunded` sets the order's `payment_status` to `refunded` (amount >= total) or `partially_refunded` and appends an order status event with the refund note (order status unchanged).                                                  |
+| `team_members() -> jsonb`                                              | admin               | Admin profiles (`status: active`, `last_active_at` from `auth.users.last_sign_in_at`) plus pending invites (`status: invited`), oldest first.                                                                                                                                                                                 |
+| `invite_team_member(p_email, p_full_name, p_role) -> jsonb`            | owner               | `FB001 'Only owners can manage the team.'`; `CF001 'That person is already on the team.'`. An existing **buyer** account is promoted immediately (`active`); otherwise a `team_invites` row is stored and applied when that e-mail registers. Sending the invitation e-mail is a backend concern.                             |
+| `update_team_member_role(p_id, p_role) -> jsonb`                       | owner               | Profile or invite id. Demoting the last active owner raises `CF001 'A store needs at least one owner. Promote someone else first.'`.                                                                                                                                                                                          |
+| `remove_team_member(p_id)`                                             | owner               | Demotes an active member to buyer (account and order history stay) or deletes an invite; same last-owner guard.                                                                                                                                                                                                               |
+
+### Triggers
+
+- `orders_apply_pending_discount` (`BEFORE INSERT` on `orders`): applies the code set by
+  `place_order_with_discount` (section 6).
+- `product_variants_notify_back_in_stock` (`AFTER UPDATE OF stock, reserved_stock`): when
+  available stock goes from 0 to > 0 and waiting alerts exist, inserts a `back_in_stock` admin
+  notification linking to `/admin/stock-alerts`.
+- `profiles_apply_team_invite` (`BEFORE INSERT` on `profiles`): promotes a new profile whose
+  e-mail has a pending invite. It edits the row before it is written, so the role guards from
+  0001/0003 (which only fire on `UPDATE`) stay untouched.
+
+### Storage: `review-photos`
+
+Public bucket, `file_size_limit = 5242880`, `allowed_mime_types = {image/jpeg, image/png,
+image/webp, image/avif, image/gif}`. Path convention `reviews/<userId>/<uuid>.<ext>`; the insert
+policy requires the second folder to equal `auth.uid()`, delete is allowed for the owner folder
+or admins. Flow in `SupabaseReviewRepository.submit`: `validateReviewPhoto` -> `storage.upload`
+-> `getPublicUrl` -> `submit_review` (uploaded objects are removed again when the RPC fails).
+
+### Security notes
+
+- Discount codes are not enumerable: no `anon`/buyer select policy; validation and redemption
+  happen inside RPCs that lock the code row. Owner-only writes mirror `ROLE_PERMISSIONS`
+  (`discounts.manage` and `team.manage` are owner permissions; the mock only checks for admin).
+- Reviews, stock alerts, returns and invites have **no** client insert/update/delete policies;
+  every write is one of the RPCs above.
+- A buyer can only review as themselves (`user_id = auth.uid()` is set server-side) and only
+  return orders they own; `is_verified_purchase` is computed from their delivered orders.
+- The last-owner rule counts **active** owners only (pending invites do not keep a store
+  owned), which is stricter than the mock.

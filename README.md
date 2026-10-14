@@ -92,20 +92,20 @@ The demo brand is **URBAN ANOMALY**, a Marikina-made clog and slide label. Sizes
 
 ## Round 2 features (UI, mock mode)
 
-| Area                                                                       | Where                                                                              | Notes                                                                                                     |
-| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Wishlist                                                                   | heart on cards and product page, header icon, `/wishlist`                          | Guest wishlist persists in localStorage.                                                                  |
-| Recently viewed, complete the look, size recommendation                    | product page, size guide dialog                                                    | Pure client logic; foot-length (cm) to US 5–12 chart in `sizeRecommendation.ts`.                          |
-| Back-in-stock alerts                                                       | product page when a variant is sold out; `/admin/stock-alerts`                     | Email delivery is a backend concern.                                                                      |
-| Guest order tracking                                                       | `/track` (order number + email), footer link                                       | Supabase needs the `track_order` RPC in `0003_track_order.sql`.                                           |
-| Reviews with photos                                                        | product page, rating on cards, `/admin/reviews` moderation                         | Verified badge from delivered orders.                                                                     |
-| Returns and exchanges                                                      | buyer order page (delivered, within 14 days), `/admin/returns`, order details card | Refund updates payment status in mock mode.                                                               |
-| Discount codes                                                             | checkout summary, `/admin/discounts`                                               | Demo codes: `WELCOME10`, `FREESHIP`, `SUMMER500`.                                                         |
-| Products CSV import/export                                                 | `/admin/products` toolbar                                                          | Column set documented in `src/features/products/domain/csv.ts`.                                           |
-| Packing slip                                                               | `/admin/orders/:id/packing-slip`                                                   | Print stylesheet.                                                                                         |
-| Team roles                                                                 | `/admin/team`; staff account `staff@demo.local` / `password`                       | Owner vs staff permissions hide Settings, Theme, Discounts, Team for staff. RLS must enforce server-side. |
-| Product SEO fields                                                         | product form SEO card                                                              | Sets page title and meta description.                                                                     |
-| CMS: FAQ and gallery sections, scheduled publishing, collection intro text | editor, `/admin/content`, `/admin/categories`                                      | Scheduled publish needs `cms_run_scheduled()` driven by pg_cron or an Edge Function in Supabase mode.     |
+| Area                                                                       | Where                                                                              | Notes                                                                                                      |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Wishlist                                                                   | heart on cards and product page, header icon, `/wishlist`                          | Guest wishlist persists in localStorage.                                                                   |
+| Recently viewed, complete the look, size recommendation                    | product page, size guide dialog                                                    | Pure client logic; foot-length (cm) to US 5–12 chart in `sizeRecommendation.ts`.                           |
+| Back-in-stock alerts                                                       | product page when a variant is sold out; `/admin/stock-alerts`                     | Email delivery is a backend concern. Supabase mode notifies admins when a waited-for variant is restocked. |
+| Guest order tracking                                                       | `/track` (order number + email), footer link                                       | Supabase needs the `track_order` RPC in `0003_track_order.sql`.                                            |
+| Reviews with photos                                                        | product page, rating on cards, `/admin/reviews` moderation                         | Verified badge from delivered orders.                                                                      |
+| Returns and exchanges                                                      | buyer order page (delivered, within 14 days), `/admin/returns`, order details card | Refund updates payment status in mock mode.                                                                |
+| Discount codes                                                             | checkout summary, `/admin/discounts`                                               | Demo codes: `WELCOME10`, `FREESHIP`, `SUMMER500`.                                                          |
+| Products CSV import/export                                                 | `/admin/products` toolbar                                                          | Column set documented in `src/features/products/domain/csv.ts`.                                            |
+| Packing slip                                                               | `/admin/orders/:id/packing-slip`                                                   | Print stylesheet.                                                                                          |
+| Team roles                                                                 | `/admin/team`; staff account `staff@demo.local` / `password`                       | Owner vs staff permissions hide Settings, Theme, Discounts, Team for staff. Supabase RPCs are owner-only.  |
+| Product SEO fields                                                         | product form SEO card                                                              | Sets page title and meta description.                                                                      |
+| CMS: FAQ and gallery sections, scheduled publishing, collection intro text | editor, `/admin/content`, `/admin/categories`                                      | Scheduled publish needs `cms_run_scheduled()` driven by pg_cron or an Edge Function in Supabase mode.      |
 
 Responsiveness is verified by `node scripts/responsive-sweep.mjs` across every route at 320, 375, 390, 430, 768, 1024, 1280, 1440 and 1920 px.
 
@@ -123,7 +123,8 @@ src/
   mocks/          seed data + createMockRepositories
   lib/            utils, format, errors, queryKeys, supabase/
   config/         env, repositories (composition root)
-supabase/         migrations/0001_schema.sql, 0002_cms.sql, 0003_*.sql, functions/README.md
+supabase/         migrations/0001_schema.sql, 0002_cms.sql, 0003_*.sql, 0004_order_emails.sql,
+                  0006_features_round2.sql (discounts, reviews, stock alerts, returns, team), functions/README.md
 docs/             architecture.md, supabase.md
 e2e/              Playwright specs
 ```
@@ -139,8 +140,8 @@ Mock tests exercise simulated repositories; they prove UI and application logic,
 
 ## Not yet implemented
 
-- Live verification of the Supabase migrations (0001, 0002, 0003_*), RLS policies and RPCs.
-- Supabase schema and adapters for discounts, reviews, returns, stock alerts and team (mock only today; Supabase stubs throw a clear error).
+- Live verification of the Supabase migrations (0001 through 0006), RLS policies and RPCs.
 - Edge Functions: `create-payment-session`, `paymongo-webhook`, `send-order-email`.
+- Outbound mail for team invitations and back-in-stock alerts (rows are recorded; sending is a backend concern).
 - Supabase Storage uploads from the product form (URLs and local previews only today).
 - Real email delivery (Resend) and realtime notification fan-out in production.
