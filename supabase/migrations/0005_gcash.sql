@@ -8,6 +8,10 @@
 -- 'pending'`; an admin matches the reference in the GCash app, calls
 -- `mark_gcash_payment_verified`, and only then can the order be confirmed.
 --
+-- Two guards back that flow: `guard_store_settings` lets only owners change the GCash
+-- account details (the money lands wherever those columns point), and
+-- `orders_gcash_reference_unique` stops one receipt from paying several orders.
+--
 -- `alter type ... add value` must come first and the new value must not be *used* by any
 -- other statement in this transaction. Only function bodies below mention 'gcash', and
 -- plpgsql resolves those literals when the function runs, not when it is created (the same
@@ -23,6 +27,41 @@ alter table public.store_settings
   add column if not exists gcash_account_name text    not null default '',
   add column if not exists gcash_number       text    not null default '',
   add column if not exists gcash_qr_url       text;
+
+-- One GCash receipt pays one live order. `payment_reference` is only ever written by the
+-- GCash branch of `place_order` (null for COD / online), so `is not null` scopes the index
+-- to GCash without naming the enum value, which this transaction may not use yet (see the
+-- header). Cancelled orders drop out so a buyer can re-order after a cancellation.
+create unique index if not exists orders_gcash_reference_unique
+  on public.orders (upper(payment_reference))
+  where payment_reference is not null and status <> 'cancelled';
+
+-- -----------------------------------------------------------------------------
+-- Guard: store_settings. Same checks as 0001, plus the GCash account details are owner-only:
+-- `store_settings_update` is `is_admin()`, so without this a staff admin could point the
+-- QR / number at their own account. SECURITY DEFINER paths keep the `app.bypass_guard` escape.
+-- The 0001 trigger `store_settings_guard` keeps pointing at this function.
+-- -----------------------------------------------------------------------------
+create or replace function public.guard_store_settings()
+returns trigger language plpgsql as $$
+begin
+  if not public.bypass_guard_enabled() and (
+       new.online_payment_configured <> old.online_payment_configured
+    or new.email_notifications_configured <> old.email_notifications_configured
+  ) then
+    raise exception 'Provider configuration flags are set by the backend only.'
+      using errcode = '42501';
+  end if;
+  if not public.bypass_guard_enabled() and not public.is_owner() and (
+       new.gcash_enabled <> old.gcash_enabled
+    or new.gcash_account_name <> old.gcash_account_name
+    or new.gcash_number <> old.gcash_number
+    or new.gcash_qr_url is distinct from old.gcash_qr_url
+  ) then
+    raise exception 'Only owners can change GCash payment details.' using errcode = 'FB001';
+  end if;
+  return new;
+end $$;
 
 -- -----------------------------------------------------------------------------
 -- Views: `order_summaries` gains `payment_reference` (appended; `create or replace view`
@@ -49,7 +88,9 @@ from public.orders o;
 --   discount_code: text | null          -- still ignored until the discounts migration lands
 -- }
 -- returns { order_id, order_number, payment_redirect_url, order }
--- Identical to 0001 apart from the GCash validation, initial state and stored reference.
+-- Identical to 0001 apart from the GCash validation, initial state and stored reference, and
+-- the admin notification quoting the total as stored (a BEFORE INSERT trigger may rewrite it;
+-- 0006's discounts do).
 -- -----------------------------------------------------------------------------
 create or replace function public.place_order(payload jsonb)
 returns jsonb
@@ -76,6 +117,7 @@ declare
   v_pay_status public.payment_status;
   v_redirect   text := null;
   v_actor      text;
+  v_constraint text;
 begin
   perform set_config('app.bypass_guard', 'on', true);
   select * into s from public.store_settings where id = 1;
@@ -117,6 +159,15 @@ begin
     if v_reference !~ '^[A-Za-z0-9]{8,20}$' then
       raise exception 'Enter the 8-20 character reference number from your GCash receipt.'
         using errcode = 'VA001';
+    end if;
+    -- Friendly form of `orders_gcash_reference_unique`; the index still catches a race.
+    if exists (
+      select 1 from public.orders o
+       where o.payment_method = 'gcash'
+         and o.status <> 'cancelled'
+         and upper(o.payment_reference) = upper(v_reference)
+    ) then
+      raise exception 'This GCash reference number has already been used.' using errcode = 'VA001';
     end if;
   end if;
   if (select count(*) from jsonb_array_elements(v_items) e) <>
@@ -192,20 +243,33 @@ begin
     v_status := 'pending_payment'; v_pay_status := 'pending';
   end if;
 
-  insert into public.orders (
-    id, order_number, user_id, customer_name, customer_email, customer_phone,
-    address_line, barangay, city, province, postal_code, delivery_instructions,
-    subtotal, shipping_fee, discount, total, payment_method, payment_status, payment_reference,
-    status, customer_note
-  ) values (
-    v_order_id, v_number, v_user,
-    trim(v_cust ->> 'full_name'), lower(trim(v_cust ->> 'email')), trim(v_cust ->> 'phone'),
-    trim(v_addr ->> 'address_line'), trim(v_addr ->> 'barangay'), trim(v_addr ->> 'city'),
-    trim(v_addr ->> 'province'), trim(v_addr ->> 'postal_code'),
-    coalesce(v_addr ->> 'delivery_instructions', ''),
-    v_subtotal, v_shipping, 0, v_total, v_method, v_pay_status, v_reference, v_status,
-    coalesce(payload ->> 'customer_note', '')
-  );
+  begin
+    insert into public.orders (
+      id, order_number, user_id, customer_name, customer_email, customer_phone,
+      address_line, barangay, city, province, postal_code, delivery_instructions,
+      subtotal, shipping_fee, discount, total, payment_method, payment_status, payment_reference,
+      status, customer_note
+    ) values (
+      v_order_id, v_number, v_user,
+      trim(v_cust ->> 'full_name'), lower(trim(v_cust ->> 'email')), trim(v_cust ->> 'phone'),
+      trim(v_addr ->> 'address_line'), trim(v_addr ->> 'barangay'), trim(v_addr ->> 'city'),
+      trim(v_addr ->> 'province'), trim(v_addr ->> 'postal_code'),
+      coalesce(v_addr ->> 'delivery_instructions', ''),
+      v_subtotal, v_shipping, 0, v_total, v_method, v_pay_status, v_reference, v_status,
+      coalesce(payload ->> 'customer_note', '')
+    );
+  exception when unique_violation then
+    -- Two buyers submitting the same reference at once: the pre-check above passed for both.
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint = 'orders_gcash_reference_unique' then
+      raise exception 'This GCash reference number has already been used.' using errcode = 'VA001';
+    end if;
+    raise;
+  end;
+
+  -- Notify with the total as stored: a BEFORE INSERT trigger (0006 discounts) may have
+  -- rewritten `total`, and the admin alert must quote the figure the buyer actually owes.
+  select total into v_total from public.orders where id = v_order_id;
 
   insert into public.order_items (
     order_id, product_id, variant_id, product_name, product_slug, image_url,
@@ -355,5 +419,18 @@ begin
   end if;
 end $$;
 
-revoke all on function public.mark_gcash_payment_verified(uuid) from public;
+-- -----------------------------------------------------------------------------
+-- Function privileges (explicit for everything this file creates, as 0006 does).
+--   Trigger function, never callable by a client role: guard_store_settings.
+--   Storefront RPC (anon + authenticated): place_order.
+--   Admin RPCs (authenticated; they check is_admin() themselves): update_order_status,
+--     mark_gcash_payment_verified.
+-- -----------------------------------------------------------------------------
+revoke execute on function public.guard_store_settings() from public, anon, authenticated;
+revoke execute on function public.place_order(jsonb) from public, anon, authenticated;
+revoke execute on function public.update_order_status(uuid, public.order_status, text) from public, anon, authenticated;
+revoke execute on function public.mark_gcash_payment_verified(uuid) from public, anon, authenticated;
+
+grant execute on function public.place_order(jsonb) to anon, authenticated;
+grant execute on function public.update_order_status(uuid, public.order_status, text) to authenticated;
 grant execute on function public.mark_gcash_payment_verified(uuid) to authenticated;

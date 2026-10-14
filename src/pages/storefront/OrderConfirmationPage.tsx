@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, PackageSearch } from 'lucide-react'
+import { CheckCircle2, Clock, PackageSearch, XCircle } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router'
 
 import { routes } from '@/app/router/routes'
@@ -10,10 +10,26 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/features/auth/application/useAuth'
 import { PaymentHandoffState } from '@/features/checkout/presentation/PaymentHandoffState'
 import { useOrderByNumber } from '@/features/orders/application/customer'
+import type { Order } from '@/features/orders/domain/entities'
 import { OrderInfoGrid } from '@/features/orders/presentation/OrderInfoGrid'
 import { OrderItemsList } from '@/features/orders/presentation/OrderItemsList'
 import { OrderSummaryCard } from '@/features/orders/presentation/OrderSummaryCard'
 import { formatDateTime, formatPrice } from '@/lib/format'
+
+/** A cancelled (or failed-payment) order never gets the "payment received" copy. */
+function closedOrderMessage(order: Order): string {
+  if (order.paymentMethod === 'gcash' && order.paymentStatus === 'failed') {
+    return 'This order was cancelled; the GCash payment was not verified.'
+  }
+  if (order.paymentStatus === 'refund_pending') {
+    return 'This order was cancelled; the payment will be refunded.'
+  }
+  if (order.paymentStatus === 'refunded') {
+    return 'This order was cancelled; the payment has been refunded.'
+  }
+  if (order.status === 'cancelled') return 'This order was cancelled.'
+  return 'The payment for this order did not go through.'
+}
 
 export default function OrderConfirmationPage() {
   const { orderNumber } = useParams<{ orderNumber: string }>()
@@ -59,9 +75,13 @@ export default function OrderConfirmationPage() {
     )
   }
 
-  const awaitingPayment = order.paymentMethod === 'online' && order.paymentStatus !== 'paid'
+  // Cancelled before the money was matched (GCash) or collected (online): nothing is owed.
+  const closed = order.status === 'cancelled' || order.paymentStatus === 'failed'
+  const awaitingPayment =
+    !closed && order.paymentMethod === 'online' && order.paymentStatus !== 'paid'
   // The buyer has already sent the money; the store still has to match the reference.
-  const awaitingVerification = order.paymentMethod === 'gcash' && order.paymentStatus === 'pending'
+  const awaitingVerification =
+    !closed && order.paymentMethod === 'gcash' && order.paymentStatus === 'pending'
   const trackHref = routes.orderDetails(order.id)
 
   return (
@@ -69,19 +89,29 @@ export default function OrderConfirmationPage() {
       <div className="text-center">
         <div
           className={
-            awaitingPayment
-              ? 'bg-warning/10 text-warning mx-auto flex size-14 items-center justify-center rounded-full'
-              : 'bg-success/10 text-success mx-auto flex size-14 items-center justify-center rounded-full'
+            closed
+              ? 'bg-muted text-muted-foreground mx-auto flex size-14 items-center justify-center rounded-full'
+              : awaitingPayment
+                ? 'bg-warning/10 text-warning mx-auto flex size-14 items-center justify-center rounded-full'
+                : 'bg-success/10 text-success mx-auto flex size-14 items-center justify-center rounded-full'
           }
         >
-          {awaitingPayment ? (
+          {closed ? (
+            <XCircle className="size-7" aria-hidden="true" />
+          ) : awaitingPayment ? (
             <Clock className="size-7" aria-hidden="true" />
           ) : (
             <CheckCircle2 className="size-7" aria-hidden="true" />
           )}
         </div>
         <h1 className="mt-6 text-3xl font-semibold tracking-tight sm:text-4xl">
-          {awaitingPayment ? 'Awaiting payment confirmation' : 'Thank you for your order'}
+          {closed
+            ? order.status === 'cancelled'
+              ? 'This order was cancelled'
+              : 'Payment not completed'
+            : awaitingPayment
+              ? 'Awaiting payment confirmation'
+              : 'Thank you for your order'}
         </h1>
         <p className="text-muted-foreground mt-3">
           Order <span className="text-foreground font-medium">{order.orderNumber}</span> · placed{' '}
@@ -93,7 +123,15 @@ export default function OrderConfirmationPage() {
       </div>
 
       <div className="mt-10 space-y-4">
-        {awaitingPayment ? (
+        {closed ? (
+          <div role="status" className="bg-muted/40 rounded-md border p-5 text-sm">
+            <p className="font-medium">{closedOrderMessage(order)}</p>
+            <p className="text-muted-foreground mt-1">
+              Nothing more is needed from you. Keep your order number if you need to reach us about
+              it.
+            </p>
+          </div>
+        ) : awaitingPayment ? (
           <div
             role="status"
             className="border-warning/30 bg-warning/5 rounded-md border p-5 text-sm"

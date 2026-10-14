@@ -125,7 +125,10 @@ export function CheckoutPaymentFields({
     {
       value: 'online',
       title: 'Online Payment',
-      description: 'GCash, Maya, cards via PayMongo.',
+      // Once the QR option is on offer, "GCash" means that card, not the PayMongo wallet.
+      description: gcashAvailable
+        ? 'Cards and e-wallets via PayMongo.'
+        : 'GCash, Maya, cards via PayMongo.',
       icon: CreditCard,
       enabled: onlinePaymentEnabled,
     },

@@ -39,6 +39,8 @@ export function isPrepaidMethod(paymentMethod: PaymentMethod): boolean {
 export const GCASH_REFERENCE_PATTERN = /^[A-Za-z0-9]{8,20}$/
 export const GCASH_REFERENCE_MESSAGE =
   'Enter the 8–20 character reference number from your GCash receipt.'
+/** One receipt pays one live order; mirrors `orders_gcash_reference_unique` in 0005_gcash.sql. */
+export const GCASH_REFERENCE_USED_MESSAGE = 'This GCash reference number has already been used.'
 
 export function isValidGcashReference(value: string): boolean {
   return GCASH_REFERENCE_PATTERN.test(value)

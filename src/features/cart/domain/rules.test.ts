@@ -67,6 +67,14 @@ describe('shipping', () => {
     expect(calculateShippingFee(2499)).toBe(150)
     expect(calculateShippingFee(2500)).toBe(0)
   })
+
+  it('prices from the store settings when given', () => {
+    const settings = { flatShippingFee: 99, freeShippingThreshold: 1000 }
+    expect(calculateShippingFee(999, settings)).toBe(99)
+    expect(calculateShippingFee(1000, settings)).toBe(0)
+    // Settings → "Set to 0 to make every order ship free."
+    expect(calculateShippingFee(1, { flatShippingFee: 99, freeShippingThreshold: 0 })).toBe(0)
+  })
 })
 
 describe('resolveCartLines', () => {
@@ -110,6 +118,15 @@ describe('calculateTotals', () => {
     expect(totals.itemCount).toBe(2)
     expect(totals.shippingFee).toBe(150)
     expect(totals.total).toBe(1750)
+    expect(totals.freeShippingThreshold).toBe(2500)
+  })
+
+  it('carries the store shipping rule into the totals', () => {
+    const lines = resolveCartLines([item('v1', 2)], [slide])
+    const totals = calculateTotals(lines, { flatShippingFee: 80, freeShippingThreshold: 1500 })
+    expect(totals.shippingFee).toBe(0)
+    expect(totals.total).toBe(1600)
+    expect(totals.freeShippingThreshold).toBe(1500)
   })
 
   it('counts quantities', () => {

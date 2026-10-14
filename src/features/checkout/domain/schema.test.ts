@@ -48,6 +48,10 @@ describe('checkoutSchema', () => {
     expect(
       checkoutSchema.safeParse({ ...valid, paymentMethod: 'online', paymentReference: '' }).success,
     ).toBe(true)
+    // Whatever was typed before switching away from GCash must not block the order.
+    expect(checkoutSchema.safeParse({ ...valid, paymentReference: 'x'.repeat(60) }).success).toBe(
+      true,
+    )
   })
 
   it('requires a well-formed GCash reference number for GCash orders', () => {
@@ -60,6 +64,9 @@ describe('checkoutSchema', () => {
     }
 
     expect(checkoutSchema.safeParse({ ...gcash, paymentReference: '1234567' }).success).toBe(false)
+    expect(checkoutSchema.safeParse({ ...gcash, paymentReference: 'x'.repeat(21) }).success).toBe(
+      false,
+    )
     expect(checkoutSchema.safeParse({ ...gcash, paymentReference: '1234 5678 90' }).success).toBe(
       false,
     )

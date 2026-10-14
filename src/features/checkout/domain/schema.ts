@@ -22,8 +22,12 @@ export const checkoutSchema = z
       .regex(/^\d{4}$/, 'Postal code must be 4 digits.'),
     deliveryInstructions: z.string().trim().max(300),
     paymentMethod: z.enum(['cod', 'online', 'gcash'], { message: 'Choose a payment method.' }),
-    /** GCash reference number from the buyer's receipt; only meaningful for `gcash`. */
-    paymentReference: z.string().trim().max(40),
+    /**
+     * GCash reference number from the buyer's receipt; only meaningful for `gcash`, where the
+     * refinement below bounds it. No limit here: a stale value left after switching to another
+     * method must never block the order.
+     */
+    paymentReference: z.string().trim(),
     customerNote: z.string().trim().max(300),
   })
   .superRefine((values, ctx) => {

@@ -1,5 +1,4 @@
 import type { CartTotals } from '@/features/cart/domain/entities'
-import { FREE_SHIPPING_THRESHOLD } from '@/features/cart/domain/rules'
 import { formatPrice } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -12,7 +11,7 @@ interface CartTotalsListProps {
 
 /** Subtotal / shipping / total rows shared by the cart summary and checkout panel. */
 export function CartTotalsList({ totals, discount = null, className }: CartTotalsListProps) {
-  const remainingForFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - totals.subtotal)
+  const remainingForFreeShipping = Math.max(0, totals.freeShippingThreshold - totals.subtotal)
   const discountAmount = discount ? Math.min(discount.amount, totals.subtotal) : 0
   const total = Math.round((totals.total - discountAmount) * 100) / 100
 
@@ -31,7 +30,7 @@ export function CartTotalsList({ totals, discount = null, className }: CartTotal
       {totals.shippingFee > 0 ? (
         <div>
           <dd className="text-muted-foreground text-xs">
-            Free shipping on orders over {formatPrice(FREE_SHIPPING_THRESHOLD)} — add{' '}
+            Free shipping on orders over {formatPrice(totals.freeShippingThreshold)} — add{' '}
             {formatPrice(remainingForFreeShipping)} more to qualify.
           </dd>
         </div>

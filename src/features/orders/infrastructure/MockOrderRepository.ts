@@ -29,6 +29,7 @@ import type {
 import type { OrderRepository } from '../domain/repository'
 import {
   GCASH_REFERENCE_MESSAGE,
+  GCASH_REFERENCE_USED_MESSAGE,
   PAYMENT_METHOD_LABELS,
   canCustomerCancel,
   canTransition,
@@ -104,7 +105,7 @@ export class MockOrderRepository implements OrderRepository {
     })
 
     const subtotal = round2(items.reduce((sum, item) => sum + item.lineTotal, 0))
-    const shippingFee = calculateShippingFee(subtotal)
+    const shippingFee = calculateShippingFee(subtotal, this.store.settings)
     const discountCode = this.resolveDiscount(input.discountCode, subtotal)
     const discount = discountCode ? computeDiscountAmount(discountCode, subtotal) : 0
     const paymentReference = this.resolvePaymentReference(input)
@@ -403,7 +404,7 @@ export class MockOrderRepository implements OrderRepository {
     return found
   }
 
-  /** GCash orders must carry a plausible reference number; no other method stores one. */
+  /** GCash orders must carry a plausible, unused reference number; no other method stores one. */
   private resolvePaymentReference(input: PlaceOrderInput): string | null {
     if (input.paymentMethod !== 'gcash') return null
     if (!this.store.settings.gcashEnabled || !this.store.settings.gcashQrUrl) {
@@ -413,6 +414,15 @@ export class MockOrderRepository implements OrderRepository {
     if (!isValidGcashReference(reference)) {
       throw new AppError('validation', GCASH_REFERENCE_MESSAGE)
     }
+    // Same rule as the `orders_gcash_reference_unique` index: case-insensitive, cancelled
+    // orders release their reference.
+    const taken = this.store.orders.some(
+      (o) =>
+        o.paymentMethod === 'gcash' &&
+        o.status !== 'cancelled' &&
+        o.paymentReference?.toUpperCase() === reference.toUpperCase(),
+    )
+    if (taken) throw new AppError('validation', GCASH_REFERENCE_USED_MESSAGE)
     return reference
   }
 

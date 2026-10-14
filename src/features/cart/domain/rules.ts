@@ -1,11 +1,23 @@
 import type { Product } from '@/features/products/domain/entities'
 import { availableStock, getDisplayPrice } from '@/features/products/domain/rules'
+import type { StoreSettings } from '@/features/settings/domain/entities'
 
 import type { CartItem, CartTotals, ResolvedCartLine } from './entities'
 import { MAX_QUANTITY_PER_LINE } from './entities'
 
 export const FREE_SHIPPING_THRESHOLD = 2500
 export const FLAT_SHIPPING_FEE = 150
+
+/**
+ * The store's shipping rule (`store_settings.flat_shipping_fee` / `free_shipping_threshold`),
+ * which `place_order` prices from. The constants above are only the fallback while it loads.
+ */
+export type ShippingSettings = Pick<StoreSettings, 'flatShippingFee' | 'freeShippingThreshold'>
+
+export const DEFAULT_SHIPPING_SETTINGS: ShippingSettings = {
+  flatShippingFee: FLAT_SHIPPING_FEE,
+  freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
+}
 
 export function cartItemKey(item: Pick<CartItem, 'variantId'>): string {
   return item.variantId
@@ -15,12 +27,18 @@ export function countItems(items: Pick<CartItem, 'quantity'>[]): number {
   return items.reduce((sum, i) => sum + i.quantity, 0)
 }
 
-export function calculateShippingFee(subtotal: number): number {
+export function calculateShippingFee(
+  subtotal: number,
+  settings: ShippingSettings = DEFAULT_SHIPPING_SETTINGS,
+): number {
   if (subtotal <= 0) return 0
-  return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : FLAT_SHIPPING_FEE
+  return subtotal >= settings.freeShippingThreshold ? 0 : settings.flatShippingFee
 }
 
-export function calculateTotals(lines: ResolvedCartLine[]): CartTotals {
+export function calculateTotals(
+  lines: ResolvedCartLine[],
+  settings: ShippingSettings = DEFAULT_SHIPPING_SETTINGS,
+): CartTotals {
   const valid = lines.filter(
     (l) =>
       l.issue !== 'product_unavailable' &&
@@ -28,12 +46,13 @@ export function calculateTotals(lines: ResolvedCartLine[]): CartTotals {
       l.issue !== 'out_of_stock',
   )
   const subtotal = round2(valid.reduce((sum, l) => sum + l.lineTotal, 0))
-  const shippingFee = calculateShippingFee(subtotal)
+  const shippingFee = calculateShippingFee(subtotal, settings)
   return {
     subtotal,
     itemCount: countItems(valid.map((l) => l.item)),
     shippingFee,
     total: round2(subtotal + shippingFee),
+    freeShippingThreshold: settings.freeShippingThreshold,
   }
 }
 

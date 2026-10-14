@@ -12,7 +12,8 @@ import {
 
 import type { PlaceOrderInput } from '../domain/entities'
 
-const REFERENCE = '1029384756123'
+// Distinct from the seeded pending GCash order's reference: one receipt pays one live order.
+const REFERENCE = '5566778899001'
 
 function input(overrides: Partial<PlaceOrderInput> = {}): PlaceOrderInput {
   return {
@@ -78,6 +79,35 @@ describe('MockOrderRepository GCash checkout', () => {
     await expect(repositories.orders.placeOrder(input())).rejects.toThrow(
       'GCash is currently unavailable.',
     )
+  })
+
+  it('refuses a reference that already paid another live order', async () => {
+    const { repositories, store } = createMockRepositoriesForTest()
+    const { order: first } = await repositories.orders.placeOrder(
+      input({ paymentReference: 'AbC12345xYz' }),
+    )
+    const before = store.orders.length
+
+    // Case-insensitive: receipts print letters in upper case, buyers type them either way.
+    await expect(
+      repositories.orders.placeOrder(input({ paymentReference: 'abc12345XYZ' })),
+    ).rejects.toThrow('This GCash reference number has already been used.')
+    // The seeded pending GCash order holds its reference too.
+    await expect(
+      repositories.orders.placeOrder(
+        input({
+          paymentReference: store.findOrder(SEED_PENDING_GCASH_ORDER_ID)?.paymentReference ?? '',
+        }),
+      ),
+    ).rejects.toThrow('This GCash reference number has already been used.')
+    expect(store.orders).toHaveLength(before)
+
+    // A cancelled order releases its reference.
+    await repositories.orders.updateOrderStatus(first.id, 'cancelled', 'Wrong amount.')
+    const { order: second } = await repositories.orders.placeOrder(
+      input({ paymentReference: 'ABC12345XYZ' }),
+    )
+    expect(second.paymentReference).toBe('ABC12345XYZ')
   })
 
   it('never keeps a reference for other payment methods', async () => {

@@ -25,6 +25,11 @@ interface ImageUploadFieldProps {
   value: ProductImageInput[]
   onChange: (images: ProductImageInput[]) => void
   disabled?: boolean
+  /**
+   * One image only (a logo, a QR code): adding another replaces it, and the alt text,
+   * primary and reorder controls - meaningless for a single image - are hidden.
+   */
+  single?: boolean
 }
 
 /** Guarantees exactly one primary image: the first one when none is flagged. */
@@ -52,7 +57,12 @@ interface PendingUpload {
 
 let nextUploadId = 1
 
-export function ImageUploadField({ value, onChange, disabled = false }: ImageUploadFieldProps) {
+export function ImageUploadField({
+  value,
+  onChange,
+  disabled = false,
+  single = false,
+}: ImageUploadFieldProps) {
   const [url, setUrl] = useState('')
   const [urlError, setUrlError] = useState<string | null>(null)
   const [libraryOpen, setLibraryOpen] = useState(false)
@@ -68,7 +78,9 @@ export function ImageUploadField({ value, onChange, disabled = false }: ImageUpl
     valueRef.current = value
   }, [value])
 
-  const update = (images: ProductImageInput[]) => onChange(normalizePrimary(images))
+  /** Single mode keeps whatever was added last; the list order is append-only. */
+  const cap = (images: ProductImageInput[]) => (single ? images.slice(-1) : images)
+  const update = (images: ProductImageInput[]) => onChange(normalizePrimary(cap(images)))
 
   const addByUrl = () => {
     const trimmed = url.trim()
@@ -91,10 +103,9 @@ export function ImageUploadField({ value, onChange, disabled = false }: ImageUpl
         {
           onSuccess: (asset) => {
             setUploads((prev) => prev.filter((u) => u.id !== uploadId))
-            const nextImages = normalizePrimary([
-              ...valueRef.current,
-              { url: asset.url, alt: asset.alt, isPrimary: false },
-            ])
+            const nextImages = normalizePrimary(
+              cap([...valueRef.current, { url: asset.url, alt: asset.alt, isPrimary: false }]),
+            )
             valueRef.current = nextImages
             onChange(nextImages)
           },
@@ -180,7 +191,7 @@ export function ImageUploadField({ value, onChange, disabled = false }: ImageUpl
         <input
           ref={fileInputRef}
           type="file"
-          multiple
+          multiple={!single}
           accept={MEDIA_ALLOWED_MIME.join(',')}
           className="sr-only"
           aria-label="Choose image files"
@@ -229,74 +240,90 @@ export function ImageUploadField({ value, onChange, disabled = false }: ImageUpl
 
       {value.length === 0 ? (
         <div className="text-muted-foreground flex items-center justify-center rounded-lg border border-dashed px-4 py-10 text-sm">
-          No images yet. Add one by URL or pick local files.
+          {single
+            ? 'No image yet. Add one by URL or pick a local file.'
+            : 'No images yet. Add one by URL or pick local files.'}
         </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Product images">
+        <ul
+          className={cn('grid gap-3', single ? 'sm:max-w-64' : 'sm:grid-cols-2 lg:grid-cols-3')}
+          aria-label={single ? 'Selected image' : 'Product images'}
+        >
           {value.map((image, index) => (
             <li
               key={`${image.id ?? 'new'}-${image.url}`}
               className={cn(
                 'bg-card flex flex-col gap-2 rounded-lg border p-2',
-                image.isPrimary && 'ring-ring ring-1',
+                image.isPrimary && !single && 'ring-ring ring-1',
               )}
             >
-              <div className="bg-muted aspect-[3/4] overflow-hidden rounded-md">
+              <div
+                className={cn(
+                  'bg-muted overflow-hidden rounded-md',
+                  single ? 'aspect-square' : 'aspect-[3/4]',
+                )}
+              >
                 <img
                   src={image.url}
-                  alt={image.alt || `Product image ${index + 1}`}
+                  alt={image.alt || (single ? 'Selected image' : `Product image ${index + 1}`)}
                   loading="lazy"
-                  className="size-full object-cover"
+                  className={cn('size-full', single ? 'object-contain' : 'object-cover')}
                 />
               </div>
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="radio"
-                  name={`${id}-primary`}
-                  checked={image.isPrimary}
-                  onChange={() => setPrimary(index)}
+              {single ? null : (
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="radio"
+                    name={`${id}-primary`}
+                    checked={image.isPrimary}
+                    onChange={() => setPrimary(index)}
+                    disabled={disabled}
+                    className="accent-primary size-4"
+                  />
+                  {image.isPrimary ? 'Primary image' : 'Set as primary'}
+                </label>
+              )}
+              {single ? null : (
+                <Input
+                  aria-label={`Alt text for image ${index + 1}`}
+                  placeholder="Alt text"
+                  value={image.alt}
                   disabled={disabled}
-                  className="accent-primary size-4"
+                  onChange={(e) => setAlt(index, e.target.value)}
+                  className="h-8 text-xs"
                 />
-                {image.isPrimary ? 'Primary image' : 'Set as primary'}
-              </label>
-              <Input
-                aria-label={`Alt text for image ${index + 1}`}
-                placeholder="Alt text"
-                value={image.alt}
-                disabled={disabled}
-                onChange={(e) => setAlt(index, e.target.value)}
-                className="h-8 text-xs"
-              />
+              )}
               <div className="flex items-center justify-between gap-1">
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Move image ${index + 1} up`}
-                    disabled={disabled || index === 0}
-                    onClick={() => update(swap(value, index, index - 1))}
-                  >
-                    <ArrowUp aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Move image ${index + 1} down`}
-                    disabled={disabled || index === value.length - 1}
-                    onClick={() => update(swap(value, index, index + 1))}
-                  >
-                    <ArrowDown aria-hidden="true" />
-                  </Button>
-                </div>
+                {single ? null : (
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Move image ${index + 1} up`}
+                      disabled={disabled || index === 0}
+                      onClick={() => update(swap(value, index, index - 1))}
+                    >
+                      <ArrowUp aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Move image ${index + 1} down`}
+                      disabled={disabled || index === value.length - 1}
+                      onClick={() => update(swap(value, index, index + 1))}
+                    >
+                      <ArrowDown aria-hidden="true" />
+                    </Button>
+                  </div>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="text-destructive hover:text-destructive"
-                  aria-label={`Remove image ${index + 1}`}
+                  className={cn('text-destructive hover:text-destructive', single && 'ml-auto')}
+                  aria-label={single ? 'Remove image' : `Remove image ${index + 1}`}
                   disabled={disabled}
                   onClick={() => remove(index)}
                 >

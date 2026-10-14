@@ -78,7 +78,7 @@ export function PaymentsSection({ form, settings }: PaymentsSectionProps) {
           form={form}
           name="onlinePaymentEnabled"
           label="Online payment"
-          description="Cards, GCash and Maya through PayMongo."
+          description="Cards and e-wallets through PayMongo. GCash by QR code is a separate method."
           trailing={
             settings.onlinePaymentConfigured ? (
               <StatusBadge label="Connected" tone="success" />

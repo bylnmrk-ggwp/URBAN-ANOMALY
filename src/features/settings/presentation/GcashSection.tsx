@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 import { ImageUploadField } from '@/components/common/ImageUploadField'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -13,13 +15,19 @@ import type { ProductImageInput } from '@/features/products/domain/entities'
 
 import { type SettingsFormApi, SwitchRow } from './fields'
 
-/** The upload field manages a list; the QR is that list's single entry. */
+/** The upload field manages a list; in single mode the QR is its only entry. */
 function toImages(url: string): ProductImageInput[] {
   return url ? [{ url, alt: 'GCash QR code', isPrimary: true }] : []
 }
 
 export function GcashSection({ form }: { form: SettingsFormApi }) {
   const enabled = form.watch('gcashEnabled')
+
+  // The details are only validated while GCash is on (storeSettingsSchema), but a field's
+  // message only refreshes when that field changes - so drop them when the switch goes off.
+  useEffect(() => {
+    if (!enabled) form.clearErrors(['gcashAccountName', 'gcashNumber', 'gcashQrUrl'])
+  }, [enabled, form])
 
   return (
     <Card className="gap-4 rounded-lg shadow-none">
@@ -81,9 +89,9 @@ export function GcashSection({ form }: { form: SettingsFormApi }) {
             <FormItem>
               <FormLabel>QR code image{enabled ? '' : ' (optional while disabled)'}</FormLabel>
               <ImageUploadField
+                single
                 value={toImages(field.value)}
-                // One image only: adding another replaces the current QR.
-                onChange={(images) => field.onChange(images.at(-1)?.url ?? '')}
+                onChange={(images) => field.onChange(images[0]?.url ?? '')}
               />
               <FormDescription>
                 Export the QR from the GCash app (Profile → My QR). It is served from the public

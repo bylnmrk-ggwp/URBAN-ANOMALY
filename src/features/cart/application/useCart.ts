@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { useStoreSettings } from '@/features/checkout/application/useStoreSettings'
 import { useProductsByIds } from '@/features/products/application/storefront'
 import type { Product, ProductVariant } from '@/features/products/domain/entities'
 import { availableStock } from '@/features/products/domain/rules'
@@ -118,7 +119,10 @@ export function useCart() {
     storeClearCart()
   }, [storeClearCart])
 
-  const totals = useMemo(() => calculateTotals(lines), [lines])
+  // Shipping follows the store's rule (not the fallback constants) so the drawer, checkout
+  // and the GCash "send exactly" amount match what place_order will store.
+  const shipping = useStoreSettings().data
+  const totals = useMemo(() => calculateTotals(lines, shipping), [lines, shipping])
 
   return {
     items,

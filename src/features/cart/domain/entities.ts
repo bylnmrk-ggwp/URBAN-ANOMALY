@@ -28,6 +28,8 @@ export interface CartTotals {
   itemCount: number
   shippingFee: number
   total: number
+  /** The threshold `shippingFee` was priced against, so summaries can say how much more qualifies. */
+  freeShippingThreshold: number
 }
 
 export const CART_STORAGE_VERSION = 1

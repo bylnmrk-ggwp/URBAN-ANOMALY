@@ -15,6 +15,7 @@ import type { ProductSize } from '@/features/products/domain/entities'
 import { findVariant, getDisplayPrice, getPrimaryImage } from '@/features/products/domain/rules'
 
 import { SEED_PRODUCTS } from './products'
+import { SEED_SETTINGS } from './settings'
 
 /** Order numbers for orders placed at runtime continue from this sequence. */
 export const SEED_ORDER_SEQUENCE_START = 1001
@@ -300,7 +301,7 @@ function buildOrder(spec: OrderSpec): Order {
   }
   const items = buildItems(spec)
   const subtotal = round2(items.reduce((sum, i) => sum + i.lineTotal, 0))
-  const shippingFee = calculateShippingFee(subtotal)
+  const shippingFee = calculateShippingFee(subtotal, SEED_SETTINGS)
   const discount = spec.discount ?? 0
   const statusHistory = buildHistory(spec, createdAt)
   const updatedAt = statusHistory[statusHistory.length - 1]?.createdAt ?? createdAt.toISOString()
