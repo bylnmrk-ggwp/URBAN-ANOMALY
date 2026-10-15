@@ -2,7 +2,7 @@
 
 A mobile-first storefront for a Manila footwear brand (washable EVA clogs, slides, loafer mules, straps and kids sizes) with a protected admin dashboard. React 19 + TypeScript (strict) + Vite, Tailwind CSS v4 + shadcn/ui, React Router v7, TanStack Query, Zustand, React Hook Form + Zod. Designed to run against Supabase (PostgreSQL, Auth, Storage) through a repository abstraction; ships with an in-memory mock mode so the full UI works without a backend.
 
-> **Status:** UI and application layer complete in **mock mode**. Supabase adapters, SQL schema and RLS policies are written but not yet verified against a live project. Payments (PayMongo) and transactional email (Resend) are integration contracts only. Do not treat this as production-ready until the items under [Not yet implemented](#not-yet-implemented) are done.
+> **Status:** UI and application layer complete in **mock mode** and running against a live Supabase project (migrations 0001-0004 applied, catalogue seeded from `supabase/seed.sql`; 0005 GCash and 0006 round-2 features are written and reviewed but not yet applied live). Payments (PayMongo) and transactional email (Resend) are integration contracts only. Do not treat this as production-ready until the items under [Not yet implemented](#not-yet-implemented) are done.
 
 ## Quick start
 
@@ -141,7 +141,7 @@ Mock tests exercise simulated repositories; they prove UI and application logic,
 
 ## Not yet implemented
 
-- Live verification of the Supabase migrations (0001 through 0006), RLS policies and RPCs.
+- Apply and verify `0005_gcash.sql` and `0006_features_round2.sql` on the live project (0001-0004 are applied; storefront, seeding via `save_product` and the admin account are verified).
 - Edge Functions: `create-payment-session`, `paymongo-webhook`, `send-order-email`.
 - Outbound mail for team invitations and back-in-stock alerts (rows are recorded; sending is a backend concern).
 - Supabase Storage uploads from the product form (URLs and local previews only today).
