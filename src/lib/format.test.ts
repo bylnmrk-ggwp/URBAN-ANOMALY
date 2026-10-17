@@ -11,8 +11,8 @@ describe('formatPrice', () => {
 
 describe('slugify', () => {
   it('normalises names into url slugs', () => {
-    expect(slugify('  Classic Crew Tee! ')).toBe('classic-crew-tee')
-    expect(slugify('Hoodies & Sweaters')).toBe('hoodies-sweaters')
+    expect(slugify('  Lava Premium Clog! ')).toBe('lava-premium-clog')
+    expect(slugify('Straps & Accessories')).toBe('straps-accessories')
   })
 })
 

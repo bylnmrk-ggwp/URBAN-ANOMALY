@@ -19,8 +19,8 @@ describe('ProductForm (admin)', { timeout: 60_000 }, () => {
   it('auto-fills the slug from the name until the slug is edited', async () => {
     const { user } = renderForm()
 
-    await user.type(screen.getByLabelText('Name'), 'Relaxed Linen Shirt')
-    await waitFor(() => expect(screen.getByLabelText('Slug')).toHaveValue('relaxed-linen-shirt'))
+    await user.type(screen.getByLabelText('Name'), 'Lava Premium Clog')
+    await waitFor(() => expect(screen.getByLabelText('Slug')).toHaveValue('lava-premium-clog'))
 
     await user.clear(screen.getByLabelText('Slug'))
     await user.type(screen.getByLabelText('Slug'), 'custom-slug')
@@ -31,7 +31,7 @@ describe('ProductForm (admin)', { timeout: 60_000 }, () => {
   it('generates a 3 sizes x 2 colors matrix of 6 variant rows', async () => {
     const { user } = renderForm()
 
-    await user.type(screen.getByLabelText('Name'), 'Camp Shirt')
+    await user.type(screen.getByLabelText('Name'), 'Court Slide')
     for (const size of ['7', '8', '9']) {
       await user.click(screen.getByRole('checkbox', { name: size }))
     }
@@ -54,17 +54,17 @@ describe('ProductForm (admin)', { timeout: 60_000 }, () => {
       .getAllByRole('textbox', { name: 'SKU' })
       .map((input) => (input as HTMLInputElement).value)
     expect(new Set(skus).size).toBe(6)
-    expect(skus[0]).toBe('CAMSHI-BLA-7')
+    expect(skus[0]).toBe('COUSLI-BLA-7')
     expect(screen.getByRole('button', { name: 'Regenerate variants' })).toBeInTheDocument()
   })
 
   it('shows a validation error when no image has been added', async () => {
     const { user, onSubmit } = renderForm()
 
-    await user.type(screen.getByLabelText('Name'), 'Camp Shirt')
+    await user.type(screen.getByLabelText('Name'), 'Court Slide')
     await user.type(
       screen.getByLabelText('Description'),
-      'A relaxed camp collar shirt in washed linen.',
+      'A single-band slide on a soft EVA footbed.',
     )
     await user.type(screen.getByLabelText('Base price'), '1490')
 

@@ -1,5 +1,5 @@
 import type { UseQueryResult } from '@tanstack/react-query'
-import { Shirt } from 'lucide-react'
+import { Footprints } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { EmptyState } from '@/components/common/EmptyState'
@@ -69,7 +69,7 @@ export function ProductCollectionSection({
           />
         ) : products.length === 0 ? (
           <EmptyState
-            icon={Shirt}
+            icon={Footprints}
             title="Products are coming soon."
             description="We're stocking the shelves. Check back shortly."
           />

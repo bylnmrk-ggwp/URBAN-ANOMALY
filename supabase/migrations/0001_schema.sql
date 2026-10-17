@@ -1,5 +1,5 @@
 -- =============================================================================
--- 0001_schema.sql — clothing store schema, RLS and transactional functions
+-- 0001_schema.sql — footwear store schema, RLS and transactional functions
 --
 -- Contract: src/lib/supabase/database.types.ts must describe exactly what this
 -- file creates. Regenerate with `supabase gen types typescript` after changes.

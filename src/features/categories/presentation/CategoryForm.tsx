@@ -72,7 +72,7 @@ export function CategoryForm({ category, onSubmit, onCancel, isPending }: Catego
             <FormItem>
               <FormLabel>Name</FormLabel>
               <FormControl>
-                <Input placeholder="Outerwear" autoComplete="off" {...field} />
+                <Input placeholder="Loafer Mules" autoComplete="off" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -86,7 +86,7 @@ export function CategoryForm({ category, onSubmit, onCancel, isPending }: Catego
               <FormLabel>Slug</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="outerwear"
+                  placeholder="loafer-mules"
                   autoComplete="off"
                   className="font-mono text-xs"
                   {...field}
@@ -148,7 +148,7 @@ export function CategoryForm({ category, onSubmit, onCancel, isPending }: Catego
                 <FormLabel>Intro title</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="Shirts for the city heat"
+                    placeholder="Slides for the city heat"
                     autoComplete="off"
                     maxLength={120}
                     {...field}

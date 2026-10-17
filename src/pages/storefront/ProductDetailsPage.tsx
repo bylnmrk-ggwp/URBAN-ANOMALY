@@ -1,4 +1,4 @@
-import { Shirt } from 'lucide-react'
+import { Footprints } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, useParams } from 'react-router'
 
@@ -95,7 +95,7 @@ export default function ProductDetailsPage() {
     return (
       <div className="container-x py-16 lg:py-24">
         <EmptyState
-          icon={Shirt}
+          icon={Footprints}
           title="Product not found"
           description="This item may have sold out for good or moved to a new address."
           action={

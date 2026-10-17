@@ -4,7 +4,7 @@ This document is the shared contract for everyone working on the codebase. Read 
 
 ## Stack
 
-React 19, TypeScript (strict, `noUncheckedIndexedAccess`), Vite 8, Tailwind CSS v4 (`@theme inline` tokens in `src/styles/globals.css`), shadcn/ui (`src/components/ui`, imports `radix-ui` single package), React Router v7 (declarative `<Routes>`), TanStack Query v5, Zustand v5, React Hook Form + Zod v4 (`zod` import; use `z.email()`, `z.url()` top-level helpers), lucide-react, sonner toasts, recharts (admin only). ESLint flat config, Prettier (no semicolons, single quotes, width 100), Vitest + Testing Library, Playwright.
+React 19, TypeScript (strict, `noUncheckedIndexedAccess`), Vite 8, Tailwind CSS v4 (`@theme inline` tokens in `src/styles/globals.css`), shadcn/ui (`src/components/ui`, imports `radix-ui` single package), React Router v8 (declarative `<Routes>`), TanStack Query v5, Zustand v5, React Hook Form + Zod v4 (`zod` import; use `z.email()`, `z.url()` top-level helpers), lucide-react, sonner toasts, recharts (admin only). ESLint flat config, Prettier (no semicolons, single quotes, width 100), Vitest + Testing Library, Playwright.
 
 Path alias: `@/` -> `src/`. Use `import type` for type-only imports (lint rule). Never use `any`.
 

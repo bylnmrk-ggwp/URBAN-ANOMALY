@@ -1,5 +1,5 @@
 import type { UseQueryResult } from '@tanstack/react-query'
-import { Shirt } from 'lucide-react'
+import { Footprints } from 'lucide-react'
 import { useMemo } from 'react'
 
 import { routes } from '@/app/router/routes'
@@ -88,7 +88,7 @@ function EmptyCollection({ section }: { section: CollectionSection }) {
     >
       <SectionHeading eyebrow={section.eyebrow || undefined} title={section.title} align="center" />
       <EmptyState
-        icon={Shirt}
+        icon={Footprints}
         title="No products selected."
         description="Pick products for this collection in the editor."
       />

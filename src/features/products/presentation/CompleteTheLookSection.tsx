@@ -19,7 +19,7 @@ interface CompleteTheLookSectionProps {
 }
 
 /**
- * Pairs the current piece with items from complementary categories (tops with bottoms, etc.;
+ * Pairs the current pair with items from complementary categories (clogs with straps, etc.;
  * see `pickCompleteTheLook`). Cards carry no variant selection, so the quick action opens the
  * product page where size and colour are chosen.
  */

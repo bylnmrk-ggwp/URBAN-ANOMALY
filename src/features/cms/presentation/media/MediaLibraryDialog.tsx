@@ -13,12 +13,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 import { useMediaList } from '../../application/useMedia'
 import type { MediaAsset } from '../../domain/media'
 import { MediaGrid, MediaGridSkeleton } from './MediaGrid'
 import { UploadDropzone } from './UploadDropzone'
-import { useDebouncedValue } from './useDebouncedValue'
 
 export interface MediaLibraryDialogProps {
   open: boolean

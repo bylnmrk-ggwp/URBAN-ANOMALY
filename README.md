@@ -1,6 +1,6 @@
 # URBAN ANOMALY — Footwear E-Commerce Frontend
 
-A mobile-first storefront for a Manila footwear brand (washable EVA clogs, slides, loafer mules, straps and kids sizes) with a protected admin dashboard. React 19 + TypeScript (strict) + Vite, Tailwind CSS v4 + shadcn/ui, React Router v7, TanStack Query, Zustand, React Hook Form + Zod. Designed to run against Supabase (PostgreSQL, Auth, Storage) through a repository abstraction; ships with an in-memory mock mode so the full UI works without a backend.
+A mobile-first storefront for a Manila footwear brand (washable EVA clogs, slides, loafer mules, straps and kids sizes) with a protected admin dashboard. React 19 + TypeScript (strict) + Vite, Tailwind CSS v4 + shadcn/ui, React Router v8, TanStack Query, Zustand, React Hook Form + Zod. Designed to run against Supabase (PostgreSQL, Auth, Storage) through a repository abstraction; ships with an in-memory mock mode so the full UI works without a backend.
 
 > **Status:** UI and application layer complete in **mock mode** and running against a live Supabase project (migrations 0001-0004 applied, catalogue seeded from `supabase/seed.sql`; 0005 GCash and 0006 round-2 features are written and reviewed but not yet applied live). Payments (PayMongo) and transactional email (Resend) are integration contracts only. Do not treat this as production-ready until the items under [Not yet implemented](#not-yet-implemented) are done.
 

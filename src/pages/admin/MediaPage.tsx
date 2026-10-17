@@ -11,7 +11,7 @@ import type { MediaAsset } from '@/features/cms/domain/media'
 import { MediaDetailsSheet } from '@/features/cms/presentation/media/MediaDetailsSheet'
 import { MediaGrid, MediaGridSkeleton } from '@/features/cms/presentation/media/MediaGrid'
 import { UploadDropzone } from '@/features/cms/presentation/media/UploadDropzone'
-import { useDebouncedValue } from '@/features/cms/presentation/media/useDebouncedValue'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 export default function MediaPage() {
   const [search, setSearch] = useState('')

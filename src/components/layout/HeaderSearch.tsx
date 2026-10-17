@@ -46,7 +46,7 @@ export function HeaderSearch() {
             name="q"
             value={term}
             onChange={(event) => setTerm(event.target.value)}
-            placeholder="Search for linen shirts, wide-leg trousers…"
+            placeholder="Search for clogs, slides, loafer mules…"
             aria-label="Search term"
             autoFocus
             className="h-11 text-base"

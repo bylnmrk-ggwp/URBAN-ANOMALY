@@ -12,7 +12,7 @@ function hero(overrides: Partial<SectionOf<'hero'>> = {}): SectionOf<'hero'> {
     ...section,
     title: 'Everyday pieces',
     subtitle: 'Cut for the heat.',
-    image: { mediaId: null, url: 'https://images.test/hero-1.jpg', alt: 'Rack of shirts' },
+    image: { mediaId: null, url: 'https://images.test/hero-1.jpg', alt: 'Rack of clogs' },
     ...overrides,
   }
 }
@@ -20,9 +20,9 @@ function hero(overrides: Partial<SectionOf<'hero'>> = {}): SectionOf<'hero'> {
 const extraSlide = {
   image: { mediaId: null, url: 'https://images.test/hero-2.jpg', alt: '' },
   eyebrow: 'Second',
-  title: 'Linen season',
+  title: 'Slides season',
   subtitle: '',
-  cta: { label: 'Shop linen', href: '/collections/linen' },
+  cta: { label: 'Shop slides', href: '/collections/slides' },
 }
 
 describe('HeroSection (single image)', () => {
@@ -57,10 +57,10 @@ describe('HeroSection (slideshow)', () => {
     )
 
     await user.click(screen.getByRole('tab', { name: 'Slide 2' }))
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Linen season')
-    expect(screen.getByRole('link', { name: 'Shop linen' })).toHaveAttribute(
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Slides season')
+    expect(screen.getByRole('link', { name: 'Shop slides' })).toHaveAttribute(
       'href',
-      '/collections/linen',
+      '/collections/slides',
     )
     expect(screen.getByRole('tab', { name: 'Slide 2' })).toHaveAttribute('aria-selected', 'true')
 

@@ -85,7 +85,7 @@ export function SizeGuideDialog({ onSelectSize }: SizeGuideDialogProps) {
         <DialogHeader>
           <DialogTitle>Size guide</DialogTitle>
           <DialogDescription>
-            Garment measurements in centimetres. For a relaxed fit, size up.
+            Foot length in centimetres. If you are between sizes, size up.
           </DialogDescription>
         </DialogHeader>
         <SizeGuideTable />

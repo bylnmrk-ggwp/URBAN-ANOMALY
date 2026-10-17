@@ -55,7 +55,7 @@ export function BasicsCard({ form, onSlugEdited }: BasicsCardProps) {
               <FormLabel>Slug</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="relaxed-linen-shirt"
+                  placeholder="lava-premium-clog"
                   autoComplete="off"
                   className="font-mono text-xs"
                   {...field}
