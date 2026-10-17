@@ -39,3 +39,6 @@ test-results
 # Claude Code session files (agent worktrees, local permission overrides)
 .claude/worktrees/
 .claude/settings.local.json
+
+.vercel
+.env*
