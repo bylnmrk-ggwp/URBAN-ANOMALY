@@ -8,9 +8,42 @@
       name="description"
       content="URBAN ANOMALY — washable EVA clogs, slides and loafer mules made in Marikina. Free shipping over ₱2,500, Cash on Delivery nationwide."
     />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Inter is self-hosted from public/fonts. `crossorigin` is required even same-origin,
+         because fonts are always fetched in CORS mode and the preload is otherwise discarded
+         and fetched a second time. One file covers 400-700: Inter v20 is a variable font. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/inter-latin.woff2" />
     <title>URBAN ANOMALY</title>
+    <script>
+      // Applies the saved theme before first paint so a dark-mode visitor never sees a light
+      // flash. It reads the exact entry Zustand's persist middleware writes for the UI store
+      // ('ui-preferences', shaped {"state":{"theme":"dark"},"version":1}) and sets the same two
+      // things ThemeProvider sets on mount, so the provider effect confirms this result instead
+      // of fighting it. The script depends on nothing else loading, and if anything throws the
+      // page just paints the default theme until React mounts.
+      try {
+        let preference = null
+        try {
+          const raw = window.localStorage.getItem('ui-preferences')
+          const parsed = raw ? JSON.parse(raw) : null
+          preference = parsed && parsed.state ? parsed.state.theme : null
+        } catch {
+          // Storage blocked (private mode, cookie policy) or the entry is unreadable.
+        }
+        // Mirrors resolveTheme() in ThemeProvider: only the 'system' preference consults the OS.
+        // A missing or unreadable entry resolves light, which is the store's own default — do
+        // not fall back to the OS here, or a first-time visitor on a dark machine gets the
+        // light flash in reverse.
+        const dark =
+          preference === 'dark' ||
+          (preference === 'system' &&
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.classList.toggle('dark', dark)
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+      } catch {
+        // Nothing applied; ThemeProvider sets the theme once React mounts.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,8 +1,18 @@
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 
 import { useUiStore, type ThemePreference } from '@/stores/uiStore'
 
 type ResolvedTheme = 'light' | 'dark'
+
+const DARK_QUERY = '(prefers-color-scheme: dark)'
 
 interface ThemeContextValue {
   theme: ThemePreference
@@ -12,17 +22,42 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-function resolveTheme(preference: ThemePreference): ResolvedTheme {
-  if (preference !== 'system') return preference
-  if (typeof window === 'undefined') return 'light'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+/** The OS colour-scheme query, or null where `matchMedia` is unavailable (SSR, old jsdom). */
+function darkMediaQuery(): MediaQueryList | null {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null
+  return window.matchMedia(DARK_QUERY)
+}
+
+function prefersDark(): boolean {
+  return darkMediaQuery()?.matches ?? false
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useUiStore((s) => s.theme)
   const setTheme = useUiStore((s) => s.setTheme)
-  const resolvedTheme = resolveTheme(theme)
 
+  // The OS colour scheme is external mutable state, so `useSyncExternalStore` is a better fit
+  // than state plus an effect: the snapshot is read during render, which keeps the first paint
+  // correct without a second commit, and React owns the subscribe/unsubscribe lifecycle. The
+  // subscription is deliberately a no-op unless the preference is 'system' — an explicit light
+  // or dark choice listens to nothing, and switching away from 'system' tears the listener down
+  // because `subscribe` changes identity with `theme`.
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      const media = theme === 'system' ? darkMediaQuery() : null
+      if (!media) return () => {}
+      media.addEventListener('change', onStoreChange)
+      return () => media.removeEventListener('change', onStoreChange)
+    },
+    [theme],
+  )
+  const systemPrefersDark = useSyncExternalStore(subscribe, prefersDark, () => false)
+
+  const resolvedTheme: ResolvedTheme =
+    theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : theme
+
+  // The inline script in index.html has already applied this before first paint; on mount this
+  // writes the same two values, so the two never disagree.
   useEffect(() => {
     const root = document.documentElement
     root.classList.toggle('dark', resolvedTheme === 'dark')
