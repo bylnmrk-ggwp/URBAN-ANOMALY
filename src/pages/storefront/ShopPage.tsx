@@ -1,5 +1,5 @@
-import { Search, Shirt } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Footprints, Search } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 
 import { routes } from '@/app/router/routes'
@@ -63,25 +63,43 @@ export default function ShopPage() {
   const [searchInput, setSearchInput] = useState(q)
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
 
-  const updateParams = (patch: Record<string, string | null>, resetPage = true) => {
-    setSearchParams(
-      (previous) => {
-        const next = new URLSearchParams(previous)
-        for (const [key, value] of Object.entries(patch)) {
-          if (value === null || value === '') next.delete(key)
-          else next.set(key, value)
-        }
-        if (resetPage) next.delete('page')
-        return next
-      },
-      { replace: true },
-    )
+  // `?q=` is the source of truth. It can change without this page remounting — the header
+  // search navigates to /shop?q=… while the shop is already on screen — so adopt the new term
+  // during render instead of leaving a stale one in the box. `syncedQuery` makes that an edge
+  // trigger on `q` rather than a comparison that would fight every keystroke, and the trim
+  // check leaves the box alone when the change is just our own debounce landing.
+  const [syncedQuery, setSyncedQuery] = useState(q)
+  if (q !== syncedQuery) {
+    setSyncedQuery(q)
+    if (q.trim() !== searchInput.trim()) setSearchInput(q)
   }
 
+  const updateParams = useCallback(
+    (patch: Record<string, string | null>, resetPage = true) => {
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous)
+          for (const [key, value] of Object.entries(patch)) {
+            if (value === null || value === '') next.delete(key)
+            else next.set(key, value)
+          }
+          if (resetPage) next.delete('page')
+          return next
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
+  )
+
+  // Typing flows back to the URL once the debounce settles. Requiring the debounced value to
+  // match the live input keeps a debounce that is still holding an older term from overwriting
+  // a term that just arrived in the URL; comparing against `q` keeps the two directions from
+  // ping-ponging once they agree.
   useEffect(() => {
+    if (debouncedSearch !== searchInput.trim()) return
     if (debouncedSearch !== q) updateParams({ q: debouncedSearch || null })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to the debounced value
-  }, [debouncedSearch])
+  }, [debouncedSearch, searchInput, q, updateParams])
 
   const catalogFilters: CatalogFilters = {
     search: q || undefined,
@@ -166,7 +184,7 @@ export default function ShopPage() {
     return (
       <div className="container-x py-16 lg:py-24">
         <EmptyState
-          icon={Shirt}
+          icon={Footprints}
           title="Collection not found"
           description="This collection may have been renamed or removed."
           action={
@@ -238,7 +256,7 @@ export default function ShopPage() {
             <ProductGrid isLoading skeletonCount={PAGE_SIZE} className="lg:grid-cols-3" />
           ) : result && result.items.length === 0 ? (
             <EmptyState
-              icon={Shirt}
+              icon={Footprints}
               title="No products match your filters."
               description="Try removing a filter or searching for something else."
               action={

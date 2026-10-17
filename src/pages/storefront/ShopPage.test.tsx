@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SEED_PRODUCTS } from '@/mocks/data/products'
@@ -32,6 +33,16 @@ function renderShop(initialEntry = '/shop') {
   })
 }
 
+/** Stands in for HeaderSearch: navigates to /shop?q=… with the shop page already mounted. */
+function HeaderSearchStub({ term }: { term: string }) {
+  const navigate = useNavigate()
+  return (
+    <button type="button" onClick={() => navigate(`/shop?q=${encodeURIComponent(term)}`)}>
+      Search for {term}
+    </button>
+  )
+}
+
 describe('ShopPage', () => {
   beforeEach(async () => {
     await resetMockSession()
@@ -64,6 +75,31 @@ describe('ShopPage', () => {
     const total = Number(/^(\d+) products?$/.exec(status.textContent ?? '')?.[1])
     expect(total).toBeGreaterThan(0)
     expect(total).toBeLessThan(publishedCount)
+  })
+
+  it('re-syncs the search box when the q param changes while the page stays mounted', async () => {
+    const { user } = renderWithProviders(
+      <>
+        <HeaderSearchStub term="mule" />
+        <ShopPage />
+      </>,
+      { route: '/shop', initialEntries: ['/shop?q=clog'] },
+    )
+    const searchBox = () => screen.getByLabelText('Search products')
+    expect(searchBox()).toHaveValue('clog')
+
+    await user.click(screen.getByRole('button', { name: 'Search for mule' }))
+
+    await waitFor(() => expect(searchBox()).toHaveValue('mule'))
+    expect(screen.getByText(/Results for “mule”/)).toBeInTheDocument()
+
+    // The next keystroke must extend the term the URL supplied instead of reviving 'clog',
+    // and the debounce that was still holding 'clog' must never reach the URL.
+    await user.type(searchBox(), 's')
+    expect(searchBox()).toHaveValue('mules')
+    expect(
+      await screen.findByText(/Results for “mules”/, {}, { timeout: 10_000 }),
+    ).toBeInTheDocument()
   })
 
   it('filters by category from the URL', async () => {
