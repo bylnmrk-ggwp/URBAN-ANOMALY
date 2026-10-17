@@ -696,7 +696,14 @@ export function mapSupabaseError(error: unknown): AppError {
       return new AppError('unauthorized', 'Incorrect email or password.', { cause: error })
     }
     if (code === 'email_not_confirmed') {
-      return new AppError('unauthorized', 'Confirm your email address before signing in.', {
+      // Its own code so the sign-in form can offer the verification screen
+      // instead of only showing the message.
+      return new AppError('email_unverified', 'Confirm your email address before signing in.', {
+        cause: error,
+      })
+    }
+    if (code === 'otp_expired') {
+      return new AppError('validation', 'That code has expired. Send yourself a new one.', {
         cause: error,
       })
     }

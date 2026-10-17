@@ -27,10 +27,11 @@ missing.
 
    `src/config/env.ts` refuses to start in `supabase` mode without both values.
 
-4. Auth settings (_Authentication > Providers > Email_): enable email/password. If
-   "Confirm email" is on, sign-up returns no session and the UI tells the user to confirm first.
-   Set _Site URL_ and add `http://localhost:5173/login` to the redirect allow-list so password
-   reset links return to the app.
+4. Auth settings (_Authentication > Providers > Email_): enable email/password and leave
+   **Confirm signup** on. Sign-up then returns no session and the app sends the buyer to the
+   verification screen to type the emailed code; section 14 covers the email template and SMTP
+   settings that flow also needs. Set _Site URL_ and add `http://localhost:5173/login` to the
+   redirect allow-list so password reset links return to the app.
 
 5. Create the first admin. Sign up through the app (or the dashboard), then in the SQL editor
    run both statements together (one run = one transaction):
@@ -480,3 +481,49 @@ keeps only `reviews/<folder>/<file>` paths, so a deletion never targets a foreig
   creates (internal `*_json` helpers, trigger functions, guards) and grants back only the RPCs
   listed above (plus `is_plausible_email`, used by CHECK constraints, and `is_owner`, used by
   policies). A comment block there classifies each function.
+
+## 14. Email verification and account emails
+
+Sign-up is a two-step flow. `auth.signUp` creates the account but returns no session, Supabase
+Auth mails a 6-digit code, and the verification screen the app opens after sign-up exchanges
+that code for the first session. `AuthRepository.signUp` therefore returns a `SignUpResult`
+(`verification_required`, or `session` on a project with confirmation switched off) rather than
+throwing, and `SupabaseAuthRepository` implements the two new methods with
+`auth.verifyOtp({ email, token, type: 'signup' })` and `auth.resend({ type: 'signup', email })`.
+
+The code deliberately does **not** go out through EmailJS. EmailJS is a browser SDK, so a code
+the browser already knows proves nothing about who owns the mailbox; only a server may generate
+and mail it. The welcome message is the opposite case - it carries no secret - so it is the
+app's own EmailJS send (`AuthEmailGateway` with the `welcome` template id from
+`VITE_EMAILJS_TEMPLATE_WELCOME`) and has no Supabase template at all. It is fired once
+`verifyOtp` succeeds and its failures are swallowed, because a courtesy mail must never undo an
+address that was just confirmed.
+
+Branded HTML for both messages lives in the top-level `emails/` directory, whose own README says
+which file belongs to which message.
+
+### Dashboard settings
+
+Manual, per project, and the flow does not work without them.
+
+1. _Authentication > Providers > Email_: **Confirm signup** must be **enabled**. With it off
+   Supabase hands back a session straight from `signUp` and nobody ever proves they own the
+   address.
+2. _Authentication > Emails > Confirm signup_: the template must contain `{{ .Token }}`, which
+   is what makes Supabase mail a 6-digit code. The stock link-only template
+   (`{{ .ConfirmationURL }}`) leaves the in-app code screen with nothing to type; keeping both
+   is fine, the app only reads the code.
+3. _Authentication > Emails_: the email OTP expiry (one hour by default) is how long a code
+   stays usable. An expired code comes back as `otp_expired`, which `mapSupabaseError` turns
+   into `validation` with "That code has expired. Send yourself a new one."; the screen's resend
+   action mails a fresh code and the previous one stops working.
+4. _Authentication > Emails > SMTP Settings_: set the sender display name to **Urban Anomaly
+   Official**, the same string as `EMAIL_SENDER_NAME` in `src/lib/email/branding.ts`, so the
+   Supabase message and the EmailJS message read as one brand. This needs **custom SMTP**:
+   Supabase's built-in sender is rate-limited to a few emails an hour, is not production-grade,
+   and does not let you choose the name. SMTP credentials stay in the dashboard - like every
+   other provider secret they never belong in a `VITE_` variable (section 9).
+
+A sign-in attempt on an account that was never confirmed returns `email_not_confirmed`, which
+`mapSupabaseError` maps to the new `AppError` code `email_unverified`, so the login form can
+offer the verification screen instead of only showing the message.

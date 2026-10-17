@@ -6,6 +6,7 @@ import type {
   AuthStatus,
   AuthUser,
   SavedAddress,
+  SignUpResult,
 } from '@/features/auth/domain/entities'
 
 export interface SignInInput {
@@ -16,6 +17,11 @@ export interface SignInInput {
 export interface SignUpInput extends SignInInput {
   fullName: string
   phone: string
+}
+
+export interface VerifyEmailInput {
+  email: string
+  code: string
 }
 
 export interface ProfileInput {
@@ -30,7 +36,10 @@ export interface AuthContextValue {
   user: AuthUser | null
   isAdmin: boolean
   signIn: UseMutationResult<AuthSession, Error, SignInInput>
-  signUp: UseMutationResult<AuthSession, Error, SignUpInput>
+  /** Resolves to `verification_required` whenever the backend mailed a code. */
+  signUp: UseMutationResult<SignUpResult, Error, SignUpInput>
+  verifyEmail: UseMutationResult<AuthSession, Error, VerifyEmailInput>
+  resendVerificationCode: UseMutationResult<void, Error, string>
   signOut: UseMutationResult<void, Error, void>
   requestPasswordReset: UseMutationResult<void, Error, string>
   updateProfile: UseMutationResult<AuthUser, Error, ProfileInput>

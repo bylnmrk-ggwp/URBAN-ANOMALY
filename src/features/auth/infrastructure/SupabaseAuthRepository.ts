@@ -5,7 +5,9 @@ import type {
   AuthSession,
   AuthUser,
   SavedAddress,
+  SignUpResult,
 } from '@/features/auth/domain/entities'
+import { AuthEmailGateway } from '@/features/auth/infrastructure/authEmails'
 import { AppError } from '@/lib/errors'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { mapSupabaseError, toAuthUser, unwrap } from '@/lib/supabase/mappers'
@@ -26,6 +28,12 @@ function expiresAtIso(session: Session): string {
  * DB trigger on sign-up with role `buyer`). The client never writes `role`.
  */
 export class SupabaseAuthRepository implements AuthRepository {
+  private readonly emails: AuthEmailGateway
+
+  constructor(emails: AuthEmailGateway = new AuthEmailGateway()) {
+    this.emails = emails
+  }
+
   private get db() {
     return getSupabaseClient()
   }
@@ -52,9 +60,10 @@ export class SupabaseAuthRepository implements AuthRepository {
     password: string
     fullName: string
     phone: string
-  }): Promise<AuthSession> {
+  }): Promise<SignUpResult> {
+    const email = input.email.trim()
     const { data, error } = await this.db.auth.signUp({
-      email: input.email.trim(),
+      email,
       password: input.password,
       options: {
         // Consumed by the `handle_new_user` trigger to seed `profiles`. Role is never sent.
@@ -63,13 +72,30 @@ export class SupabaseAuthRepository implements AuthRepository {
     })
     if (error) throw mapSupabaseError(error)
     if (!data.session) {
-      // Email confirmation is enabled on the project: no session until the link is clicked.
-      throw new AppError(
-        'unauthorized',
-        'Account created. Check your email to confirm your address, then sign in.',
-      )
+      // Email confirmation is enabled on the project: Supabase has mailed a
+      // 6-digit code and there is no session until `verifyEmail` accepts it.
+      return { status: 'verification_required', email }
     }
-    return this.toAuthSession(data.session)
+    return { status: 'session', session: await this.toAuthSession(data.session) }
+  }
+
+  async verifyEmail(input: { email: string; code: string }): Promise<AuthSession> {
+    const { data, error } = await this.db.auth.verifyOtp({
+      email: input.email.trim(),
+      token: input.code.trim(),
+      type: 'signup',
+    })
+    if (error) throw mapSupabaseError(error)
+    if (!data.session) throw new AppError('validation', 'That code is not valid any more.')
+    const session = await this.toAuthSession(data.session)
+    // Courtesy mail: a failure here must not undo a confirmed account.
+    await this.emails.sendWelcome({ email: session.user.email, fullName: session.user.fullName })
+    return session
+  }
+
+  async resendVerificationCode(email: string): Promise<void> {
+    const { error } = await this.db.auth.resend({ type: 'signup', email: email.trim() })
+    if (error) throw mapSupabaseError(error)
   }
 
   async signOut(): Promise<void> {

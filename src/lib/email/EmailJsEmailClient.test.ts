@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { EMAIL_LOGO_URL, EMAIL_SENDER_NAME, EMAIL_SITE_URL } from './branding'
 import { EmailJsEmailClient } from './EmailJsEmailClient'
 import { createEmailClient } from './index'
 import { NoopEmailClient } from './NoopEmailClient'
@@ -15,7 +16,11 @@ function config(overrides: Partial<EmailJsConfig> = {}): EmailJsConfig {
   return {
     serviceId: 'service_test',
     publicKey: 'public_test',
-    templates: { new_order: 'tpl_new_order', order_update: 'tpl_order_update' },
+    templates: {
+      new_order: 'tpl_new_order',
+      order_update: 'tpl_order_update',
+      welcome: 'tpl_welcome',
+    },
     ...overrides,
   }
 }
@@ -35,7 +40,9 @@ describe('createEmailClient', () => {
   it('returns the EmailJS client only when a service, public key and template exist', () => {
     expect(createEmailClient(config())).toBeInstanceOf(EmailJsEmailClient)
     expect(
-      createEmailClient(config({ templates: { new_order: null, order_update: 'tpl' } })),
+      createEmailClient(
+        config({ templates: { new_order: null, order_update: 'tpl', welcome: null } }),
+      ),
     ).toBeInstanceOf(EmailJsEmailClient)
   })
 
@@ -43,7 +50,9 @@ describe('createEmailClient', () => {
     expect(createEmailClient(config({ serviceId: null }))).toBeInstanceOf(NoopEmailClient)
     expect(createEmailClient(config({ publicKey: null }))).toBeInstanceOf(NoopEmailClient)
     expect(
-      createEmailClient(config({ templates: { new_order: null, order_update: null } })),
+      createEmailClient(
+        config({ templates: { new_order: null, order_update: null, welcome: null } }),
+      ),
     ).toBeInstanceOf(NoopEmailClient)
   })
 })
@@ -82,6 +91,9 @@ describe('EmailJsEmailClient', () => {
         to_email: 'admin@example.com',
         to_name: 'URBAN ANOMALY',
         subject: 'New order ORD-2610-00001',
+        from_name: EMAIL_SENDER_NAME,
+        logo_url: EMAIL_LOGO_URL,
+        site_url: EMAIL_SITE_URL,
       },
       { publicKey: 'public_test' },
     )
@@ -95,7 +107,7 @@ describe('EmailJsEmailClient', () => {
 
   it('skips without touching the SDK when this flow has no template', async () => {
     const client = new EmailJsEmailClient(
-      config({ templates: { new_order: null, order_update: 'tpl_order_update' } }),
+      config({ templates: { new_order: null, order_update: 'tpl_order_update', welcome: null } }),
     )
 
     await expect(client.send(message())).resolves.toEqual({
@@ -144,5 +156,33 @@ describe('EmailJsEmailClient', () => {
     await client.send(message())
     await client.send(message())
     expect(send).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('branding', () => {
+  beforeEach(() => {
+    send.mockReset()
+    send.mockResolvedValue({ status: 200, text: 'OK' })
+  })
+
+  it('reaches every template, so no template has to hard-code the sender', async () => {
+    const client = new EmailJsEmailClient(config())
+
+    await client.send(message({ template: 'welcome', to: 'buyer@example.com' }))
+
+    expect(send.mock.calls[0]?.[1]).toBe('tpl_welcome')
+    expect(send.mock.calls[0]?.[2]).toMatchObject({
+      from_name: 'Urban Anomaly Official',
+      logo_url: EMAIL_LOGO_URL,
+      site_url: EMAIL_SITE_URL,
+    })
+  })
+
+  it('cannot be overridden by a caller-supplied param of the same name', async () => {
+    const client = new EmailJsEmailClient(config())
+
+    await client.send(message({ params: { from_name: 'Someone Else' } }))
+
+    expect(send.mock.calls[0]?.[2]).toMatchObject({ from_name: EMAIL_SENDER_NAME })
   })
 })

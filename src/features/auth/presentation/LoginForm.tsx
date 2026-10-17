@@ -15,7 +15,8 @@ import { Input } from '@/components/ui/input'
 import { env } from '@/config/env'
 import { useAuth } from '@/features/auth/application/useAuth'
 import { loginSchema, type LoginFormValues } from '@/features/auth/domain/entities'
-import { getErrorMessage } from '@/lib/errors'
+import { getErrorMessage, isAppError } from '@/lib/errors'
+import type { VerifyEmailLocationState } from '@/pages/storefront/VerifyEmailPage'
 
 import { DemoAccounts } from './DemoAccounts'
 import { SubmitButton } from './SubmitButton'
@@ -45,8 +46,15 @@ export function LoginForm() {
       navigate(session.user.role === 'admin' ? routes.admin.dashboard : routes.account, {
         replace: true,
       })
-    } catch {
-      // Surfaced inline through signIn.error.
+    } catch (error) {
+      // An account that never finished sign-up belongs on the code screen, not
+      // on an error message it cannot act on.
+      if (isAppError(error) && error.code === 'email_unverified') {
+        const state: VerifyEmailLocationState = { email: values.email.trim() }
+        navigate(routes.verifyEmail, { state })
+        return
+      }
+      // Everything else is surfaced inline through signIn.error.
     }
   }
 

@@ -4,11 +4,14 @@ import { daysAgo } from './products'
 
 /**
  * Demo account. The password lives next to, never inside, the `AuthUser` so it
- * can never leak through a session object.
+ * can never leak through a session object. The pending verification code is
+ * kept out of `AuthUser` for the same reason.
  */
 export interface MockUserAccount {
   user: AuthUser
   password: string
+  /** Code the buyer still has to confirm; `null` once the address is verified. */
+  pendingVerificationCode: string | null
   createdAt: string
 }
 
@@ -24,6 +27,7 @@ export const SEED_USERS: MockUserAccount[] = [
       addresses: [],
     },
     password: 'password',
+    pendingVerificationCode: null,
     createdAt: daysAgo(365),
   },
   {
@@ -37,6 +41,7 @@ export const SEED_USERS: MockUserAccount[] = [
       addresses: [],
     },
     password: 'password',
+    pendingVerificationCode: null,
     createdAt: daysAgo(140),
   },
   {
@@ -62,6 +67,7 @@ export const SEED_USERS: MockUserAccount[] = [
       ],
     },
     password: 'password',
+    pendingVerificationCode: null,
     createdAt: daysAgo(90),
   },
 ]

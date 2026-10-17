@@ -1,6 +1,8 @@
 export type AppErrorCode =
   | 'not_found'
   | 'unauthorized'
+  /** Signed-in attempt on an account whose email is not confirmed yet. */
+  | 'email_unverified'
   | 'forbidden'
   | 'validation'
   | 'conflict'

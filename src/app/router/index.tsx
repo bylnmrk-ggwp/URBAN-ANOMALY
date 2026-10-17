@@ -20,6 +20,7 @@ const OrderConfirmationPage = lazy(() => import('@/pages/storefront/OrderConfirm
 const LoginPage = lazy(() => import('@/pages/storefront/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/storefront/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/pages/storefront/ForgotPasswordPage'))
+const VerifyEmailPage = lazy(() => import('@/pages/storefront/VerifyEmailPage'))
 const AccountPage = lazy(() => import('@/pages/storefront/AccountPage'))
 const MyOrdersPage = lazy(() => import('@/pages/storefront/MyOrdersPage'))
 const OrderDetailsPage = lazy(() => import('@/pages/storefront/OrderDetailsPage'))
@@ -76,6 +77,7 @@ export function AppRouter() {
             <Route path="/pages/:slug" element={<CustomPage />} />
             <Route path={routes.login} element={<LoginPage />} />
             <Route path={routes.register} element={<RegisterPage />} />
+            <Route path={routes.verifyEmail} element={<VerifyEmailPage />} />
             <Route path={routes.forgotPassword} element={<ForgotPasswordPage />} />
             {/* Agent A: storefront commerce (public) */}
             <Route path={routes.wishlist} element={<WishlistPage />} />

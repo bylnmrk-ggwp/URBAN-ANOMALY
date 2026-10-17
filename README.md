@@ -67,6 +67,7 @@ Key decisions:
 - **GCash via QR** is a manual prepaid method (`supabase/migrations/0005_gcash.sql`): the owner uploads their QR and account details in Settings, the buyer pays in the app and types the reference number, and an admin marks the order paid before it can be confirmed. See [docs/supabase.md](docs/supabase.md#12-gcash-qr-payments-supabasemigrations0005_gcashsql).
 - **Inventory** changes go through audited movements (`adjust_stock` RPC); the UI never overwrites a stock number.
 - **Roles** come from the backend profile (`profiles.role`), never from client storage. Public registration creates buyers only. In Supabase mode RLS enforces every admin check.
+- **Email verification** gates sign-up: the account is created without a session, Supabase Auth mails a 6-digit code, and the verification screen reached after sign-up exchanges that code for the first session (a resend invalidates the previous code). The code never travels through EmailJS, because a browser SDK cannot prove who owns a mailbox; only the branded welcome email that follows confirmation is the app's own send. See [docs/supabase.md](docs/supabase.md#14-email-verification-and-account-emails).
 
 ## CMS
 
@@ -126,6 +127,7 @@ src/
   config/         env, repositories (composition root)
 supabase/         migrations/0001_schema.sql, 0002_cms.sql, 0003_*.sql, 0004_order_emails.sql,
                   0006_features_round2.sql (discounts, reviews, stock alerts, returns, team), functions/README.md
+emails/           branded HTML for the verification and welcome emails
 docs/             architecture.md, supabase.md
 e2e/              Playwright specs
 ```
@@ -142,6 +144,7 @@ Mock tests exercise simulated repositories; they prove UI and application logic,
 ## Not yet implemented
 
 - Apply and verify `0005_gcash.sql` and `0006_features_round2.sql` on the live project (0001-0004 are applied; storefront, seeding via `save_product` and the admin account are verified).
+- Two dashboard steps for email verification on the live project: enable **Confirm signup** and add `{{ .Token }}` to its email template (a link-only template leaves the in-app code screen with nothing to type), and configure custom SMTP so the sender reads `Urban Anomaly Official` (the built-in sender is rate-limited and cannot be renamed).
 - Edge Functions: `create-payment-session`, `paymongo-webhook`, `send-order-email`.
 - Outbound mail for team invitations and back-in-stock alerts (rows are recorded; sending is a backend concern).
 - Supabase Storage uploads from the product form (URLs and local previews only today).

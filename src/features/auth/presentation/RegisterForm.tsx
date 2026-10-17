@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/features/auth/application/useAuth'
 import { registerSchema, type RegisterFormValues } from '@/features/auth/domain/entities'
 import { getErrorMessage } from '@/lib/errors'
+import type { VerifyEmailLocationState } from '@/pages/storefront/VerifyEmailPage'
 
 import { SubmitButton } from './SubmitButton'
 
@@ -31,7 +32,12 @@ export function RegisterForm() {
 
   const onSubmit = async ({ fullName, email, phone, password }: RegisterFormValues) => {
     try {
-      await signUp.mutateAsync({ fullName, email, phone, password })
+      const result = await signUp.mutateAsync({ fullName, email, phone, password })
+      if (result.status === 'verification_required') {
+        const state: VerifyEmailLocationState = { email: result.email }
+        navigate(routes.verifyEmail, { replace: true, state })
+        return
+      }
       navigate(routes.account, { replace: true })
     } catch {
       // Surfaced inline through signUp.error.

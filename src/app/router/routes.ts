@@ -10,6 +10,8 @@ export const routes = {
   about: '/about',
   login: '/login',
   register: '/register',
+  /** Code entry after sign-up; reached with the address in router state. */
+  verifyEmail: '/verify-email',
   forgotPassword: '/forgot-password',
   account: '/account',
   myOrders: '/account/orders',

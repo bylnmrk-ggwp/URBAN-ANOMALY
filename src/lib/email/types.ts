@@ -5,7 +5,7 @@
  */
 
 /** One template per outbound flow; each maps to a `VITE_EMAILJS_TEMPLATE_*` id. */
-export type EmailTemplateKey = 'new_order' | 'order_update'
+export type EmailTemplateKey = 'new_order' | 'order_update' | 'welcome'
 
 export interface EmailMessage {
   template: EmailTemplateKey

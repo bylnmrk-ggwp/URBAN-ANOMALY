@@ -30,6 +30,15 @@ export interface AuthSession {
   expiresAt: string
 }
 
+/**
+ * Outcome of a sign-up. Email confirmation is on, so the usual outcome is
+ * `verification_required`: the backend mailed a 6-digit code and there is no
+ * session until {@link AuthRepository.verifyEmail} accepts it. A project with
+ * confirmation turned off signs the buyer straight in and yields `session`.
+ */
+export type SignUpResult =
+  { status: 'session'; session: AuthSession } | { status: 'verification_required'; email: string }
+
 export interface AuthRepository {
   getSession(): Promise<AuthSession | null>
   signIn(input: { email: string; password: string }): Promise<AuthSession>
@@ -38,7 +47,11 @@ export interface AuthRepository {
     password: string
     fullName: string
     phone: string
-  }): Promise<AuthSession>
+  }): Promise<SignUpResult>
+  /** Confirms the address with the emailed code and returns the first session. */
+  verifyEmail(input: { email: string; code: string }): Promise<AuthSession>
+  /** Mails a fresh code; the previous one stops working. */
+  resendVerificationCode(email: string): Promise<void>
   signOut(): Promise<void>
   requestPasswordReset(email: string): Promise<void>
   updateProfile(input: { fullName: string; phone: string }): Promise<AuthUser>
@@ -69,6 +82,14 @@ export const registerSchema = z
     message: 'Passwords do not match.',
   })
 export type RegisterFormValues = z.infer<typeof registerSchema>
+
+export const verifyEmailSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the 6-digit code from your email.'),
+})
+export type VerifyEmailFormValues = z.infer<typeof verifyEmailSchema>
 
 export const forgotPasswordSchema = z.object({
   email: z.email('Enter a valid email address.'),

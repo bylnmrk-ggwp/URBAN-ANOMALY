@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@/lib/errors'
 
+import { EMAIL_LOGO_URL, EMAIL_SENDER_NAME, EMAIL_SITE_URL } from './branding'
 import type { EmailClient, EmailJsConfig, EmailMessage, EmailSendResult } from './types'
 import { emailSkipped } from './types'
 
@@ -52,6 +53,11 @@ export class EmailJsEmailClient implements EmailClient {
           to_email: message.to,
           to_name: message.toName,
           subject: message.subject,
+          // Sender identity and artwork, on every template rather than pasted
+          // into each one, so the brand only ever changes in one place.
+          from_name: EMAIL_SENDER_NAME,
+          logo_url: EMAIL_LOGO_URL,
+          site_url: EMAIL_SITE_URL,
         },
         { publicKey },
       )

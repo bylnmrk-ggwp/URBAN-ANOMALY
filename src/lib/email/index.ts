@@ -13,6 +13,7 @@ export type {
   EmailTemplateKey,
 } from './types'
 export { emailSkipped } from './types'
+export { EMAIL_LOGO_URL, EMAIL_SENDER_NAME, EMAIL_SITE_URL } from './branding'
 export { EmailJsEmailClient } from './EmailJsEmailClient'
 export { NoopEmailClient } from './NoopEmailClient'
 
@@ -23,7 +24,9 @@ export { NoopEmailClient } from './NoopEmailClient'
  */
 export function createEmailClient(config: EmailJsConfig): EmailClient {
   if (!config.serviceId || !config.publicKey) return new NoopEmailClient()
-  const hasTemplate = Boolean(config.templates.new_order || config.templates.order_update)
+  const hasTemplate = Boolean(
+    config.templates.new_order || config.templates.order_update || config.templates.welcome,
+  )
   return hasTemplate ? new EmailJsEmailClient(config) : new NoopEmailClient()
 }
 

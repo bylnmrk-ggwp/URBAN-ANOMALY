@@ -9,6 +9,7 @@ import {
   type SaveAddressInput,
   type SignInInput,
   type SignUpInput,
+  type VerifyEmailInput,
 } from '@/features/auth/application/useAuth'
 import type { AuthSession, AuthStatus, AuthUser } from '@/features/auth/domain/entities'
 import { queryKeys } from '@/lib/queryKeys'
@@ -83,7 +84,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   })
   const signUp = useMutation({
     mutationFn: (input: SignUpInput) => auth.signUp(input),
+    // Email confirmation is the normal path, and it yields no session: the
+    // verification screen takes over until the emailed code is accepted.
+    onSuccess: (result) => (result.status === 'session' ? onSession(result.session) : undefined),
+  })
+  const verifyEmail = useMutation({
+    mutationFn: (input: VerifyEmailInput) => auth.verifyEmail(input),
     onSuccess: onSession,
+  })
+  const resendVerificationCode = useMutation({
+    mutationFn: (email: string) => auth.resendVerificationCode(email),
   })
   const signOut = useMutation({
     mutationFn: async () => {
@@ -128,6 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin: state.user?.role === 'admin',
       signIn,
       signUp,
+      verifyEmail,
+      resendVerificationCode,
       signOut,
       requestPasswordReset,
       updateProfile,
@@ -138,6 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       state,
       signIn,
       signUp,
+      verifyEmail,
+      resendVerificationCode,
       signOut,
       requestPasswordReset,
       updateProfile,

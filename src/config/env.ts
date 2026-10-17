@@ -13,6 +13,7 @@ const envSchema = z.object({
   VITE_EMAILJS_PUBLIC_KEY: z.string().optional(),
   VITE_EMAILJS_TEMPLATE_NEW_ORDER: z.string().optional(),
   VITE_EMAILJS_TEMPLATE_ORDER_UPDATE: z.string().optional(),
+  VITE_EMAILJS_TEMPLATE_WELCOME: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(import.meta.env)
@@ -45,6 +46,7 @@ const emailjs: EmailJsConfig = {
   templates: {
     new_order: optional(raw.VITE_EMAILJS_TEMPLATE_NEW_ORDER),
     order_update: optional(raw.VITE_EMAILJS_TEMPLATE_ORDER_UPDATE),
+    welcome: optional(raw.VITE_EMAILJS_TEMPLATE_WELCOME),
   },
 }
 

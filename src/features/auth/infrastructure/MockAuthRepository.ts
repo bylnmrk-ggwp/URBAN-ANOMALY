@@ -3,7 +3,14 @@ import type { MockStore } from '@/mocks/MockStore'
 import type { MockUserAccount } from '@/mocks/data/users'
 import { clone, nowIso } from '@/mocks/helpers'
 
-import type { AuthRepository, AuthSession, AuthUser, SavedAddress } from '../domain/entities'
+import type {
+  AuthRepository,
+  AuthSession,
+  AuthUser,
+  SavedAddress,
+  SignUpResult,
+} from '../domain/entities'
+import { AuthEmailGateway } from './authEmails'
 
 /**
  * Only the user id and expiry are persisted. The role (and everything else)
@@ -15,6 +22,9 @@ const SESSION_STORAGE_KEY = 'mock-auth-session'
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000
 const AUTH_DELAY_MS = 120
 
+/** Same wording for an unknown address and a wrong code: neither confirms an account exists. */
+const INVALID_CODE_MESSAGE = 'That code is not correct. Check your email and try again.'
+
 interface PersistedSession {
   userId: string
   expiresAt: string
@@ -24,10 +34,12 @@ type AuthListener = (session: AuthSession | null) => void
 
 export class MockAuthRepository implements AuthRepository {
   private readonly store: MockStore
+  private readonly emails: AuthEmailGateway
   private readonly listeners = new Set<AuthListener>()
 
-  constructor(store: MockStore) {
+  constructor(store: MockStore, emails: AuthEmailGateway = new AuthEmailGateway()) {
     this.store = store
+    this.emails = emails
     this.store.currentSession = this.rehydrate()
   }
 
@@ -47,6 +59,11 @@ export class MockAuthRepository implements AuthRepository {
     if (!account || account.password !== input.password) {
       throw new AppError('unauthorized', 'Incorrect email or password.')
     }
+    if (account.pendingVerificationCode !== null) {
+      // An unconfirmed address never reaches `startSession`, and the wording
+      // matches what the Supabase mapper produces for `email_not_confirmed`.
+      throw new AppError('email_unverified', 'Confirm your email address before signing in.')
+    }
     return this.startSession(account)
   }
 
@@ -55,15 +72,16 @@ export class MockAuthRepository implements AuthRepository {
     password: string
     fullName: string
     phone: string
-  }): Promise<AuthSession> {
+  }): Promise<SignUpResult> {
     await this.store.delay()
     if (this.findByEmail(input.email)) {
       throw new AppError('conflict', 'An account with this email already exists.')
     }
+    const email = input.email.trim().toLowerCase()
     const account: MockUserAccount = {
       user: {
         id: this.store.nextId('user'),
-        email: input.email.trim().toLowerCase(),
+        email,
         fullName: input.fullName.trim(),
         phone: input.phone.trim(),
         // Self-service registration always creates a buyer. Admins are provisioned out of band.
@@ -72,10 +90,39 @@ export class MockAuthRepository implements AuthRepository {
         addresses: [],
       },
       password: input.password,
+      pendingVerificationCode: generateVerificationCode(),
       createdAt: nowIso(),
     }
     this.store.users.push(account)
-    return this.startSession(account)
+    logVerificationCode(account)
+    // No session yet: the account stays unverified until `verifyEmail` accepts the code.
+    return { status: 'verification_required', email }
+  }
+
+  async verifyEmail(input: { email: string; code: string }): Promise<AuthSession> {
+    await this.store.delay()
+    const account = this.findByEmail(input.email)
+    if (!account) throw new AppError('validation', INVALID_CODE_MESSAGE)
+    // Confirming twice (a resubmitted form, a reloaded tab) simply signs the buyer in.
+    if (account.pendingVerificationCode === null) return this.startSession(account)
+    if (account.pendingVerificationCode !== input.code.trim()) {
+      throw new AppError('validation', INVALID_CODE_MESSAGE)
+    }
+    account.pendingVerificationCode = null
+    const session = this.startSession(account)
+    // Courtesy mail: a failure here must not undo a confirmed account.
+    await this.emails.sendWelcome({ email: session.user.email, fullName: session.user.fullName })
+    return session
+  }
+
+  async resendVerificationCode(email: string): Promise<void> {
+    await this.store.delay()
+    const account = this.findByEmail(email)
+    // Silent for an unknown or already-confirmed address: we deliberately do
+    // not reveal whether `email` exists.
+    if (!account || account.pendingVerificationCode === null) return
+    account.pendingVerificationCode = generateVerificationCode()
+    logVerificationCode(account)
   }
 
   async signOut(): Promise<void> {
@@ -212,6 +259,22 @@ export class MockAuthRepository implements AuthRepository {
       return null
     }
   }
+}
+
+/** Six digits, zero-padded. A mock needs no cryptographic randomness. */
+function generateVerificationCode(): string {
+  return Math.floor(Math.random() * 1_000_000)
+    .toString()
+    .padStart(6, '0')
+}
+
+/**
+ * Mock mode has no mailbox, so the code goes to the console instead: this line
+ * stands in for the email Supabase mode sends.
+ */
+function logVerificationCode(account: MockUserAccount) {
+  const { email } = account.user
+  console.info(`[mock] verification code for ${email}: ${account.pendingVerificationCode}`)
 }
 
 function isPersistedSession(value: unknown): value is PersistedSession {
