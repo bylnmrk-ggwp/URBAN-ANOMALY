@@ -152,7 +152,10 @@ export function ImportProductsDialog({
           <DialogDescription>
             Columns: <code className="font-mono text-xs">{PRODUCT_CSV_COLUMNS.join(', ')}</code>.
             Lists use <code className="font-mono text-xs">|</code> as separator; colors are{' '}
-            <code className="font-mono text-xs">Name:#RRGGBB</code>. Export first to get a template.
+            <code className="font-mono text-xs">Name:#RRGGBB</code>. The stock and threshold columns
+            take either one number for every variant or a{' '}
+            <code className="font-mono text-xs">7:Lava:12|8:Lava:0</code> list that names each one.
+            Export first to get a template.
           </DialogDescription>
         </DialogHeader>
 
