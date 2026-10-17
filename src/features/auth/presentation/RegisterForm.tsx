@@ -14,9 +14,12 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/features/auth/application/useAuth'
-import { registerSchema, type RegisterFormValues } from '@/features/auth/domain/entities'
+import {
+  registerSchema,
+  type RegisterFormValues,
+  type VerifyEmailLocationState,
+} from '@/features/auth/domain/entities'
 import { getErrorMessage } from '@/lib/errors'
-import type { VerifyEmailLocationState } from '@/pages/storefront/VerifyEmailPage'
 
 import { SubmitButton } from './SubmitButton'
 

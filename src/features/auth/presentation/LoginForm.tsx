@@ -14,9 +14,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { env } from '@/config/env'
 import { useAuth } from '@/features/auth/application/useAuth'
-import { loginSchema, type LoginFormValues } from '@/features/auth/domain/entities'
+import {
+  loginSchema,
+  type LoginFormValues,
+  type VerifyEmailLocationState,
+} from '@/features/auth/domain/entities'
 import { getErrorMessage, isAppError } from '@/lib/errors'
-import type { VerifyEmailLocationState } from '@/pages/storefront/VerifyEmailPage'
 
 import { DemoAccounts } from './DemoAccounts'
 import { SubmitButton } from './SubmitButton'

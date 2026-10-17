@@ -2,13 +2,9 @@ import { Link, Navigate, useLocation } from 'react-router'
 
 import { routes } from '@/app/router/routes'
 import { useAuth } from '@/features/auth/application/useAuth'
+import type { VerifyEmailLocationState } from '@/features/auth/domain/entities'
 import { AuthCard } from '@/features/auth/presentation/AuthCard'
 import { VerifyEmailForm } from '@/features/auth/presentation/VerifyEmailForm'
-
-/** Router state set by the screen that triggered the code: sign-up, or sign-in on an unverified account. */
-export interface VerifyEmailLocationState {
-  email?: string
-}
 
 export default function VerifyEmailPage() {
   const { status } = useAuth()

@@ -39,6 +39,16 @@ export interface AuthSession {
 export type SignUpResult =
   { status: 'session'; session: AuthSession } | { status: 'verification_required'; email: string }
 
+/**
+ * Router state carried to the verification screen by whichever screen triggered
+ * the code: sign-up, or a sign-in on an account that never confirmed. The
+ * address travels in router state rather than the URL so it stays out of
+ * browser history and server logs.
+ */
+export interface VerifyEmailLocationState {
+  email?: string
+}
+
 export interface AuthRepository {
   getSession(): Promise<AuthSession | null>
   signIn(input: { email: string; password: string }): Promise<AuthSession>
