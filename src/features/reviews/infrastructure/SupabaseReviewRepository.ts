@@ -142,22 +142,45 @@ export class SupabaseReviewRepository implements ReviewRepository {
 
   // ---------------------------------------------------------------------------
 
+  /**
+   * Uploads every photo at once. `submit` and `submit_review` both cap the set at
+   * REVIEW_MAX_PHOTOS (3) of at most 5 MB each, so the fan-out needs no concurrency limit.
+   *
+   * Two things the sequential version gave for free have to be rebuilt by hand here:
+   * `Promise.allSettled` (not `Promise.all`) so every upload has finished before the
+   * cleanup runs - `all` rejects on the first failure while the rest are still in flight,
+   * and those would land as orphan objects after `removeObjects` - and paths assigned up
+   * front so the returned arrays keep the caller's photo order, which the storefront shows.
+   */
   private async uploadPhotos(userId: string, photos: File[]): Promise<UploadedPhotos> {
     const bucket = this.db.storage.from(REVIEW_PHOTO_BUCKET)
+    const planned = photos.map((photo) => ({ photo, path: reviewPhotoPath(userId, photo) }))
+    const outcomes = await Promise.allSettled(
+      planned.map(({ photo, path }) =>
+        bucket.upload(path, photo, {
+          contentType: photo.type,
+          cacheControl: '31536000',
+          upsert: false,
+        }),
+      ),
+    )
+
+    // supabase-js reports a refused upload in `error`; a transport-level fault rejects
+    // instead. Both are failures, and both go through mapSupabaseError.
+    const failures = outcomes.map((outcome) =>
+      outcome.status === 'rejected' ? (outcome.reason as unknown) : outcome.value.error,
+    )
     const uploaded: UploadedPhotos = { urls: [], paths: [] }
-    for (const photo of photos) {
-      const path = reviewPhotoPath(userId, photo)
-      const result = await bucket.upload(path, photo, {
-        contentType: photo.type,
-        cacheControl: '31536000',
-        upsert: false,
-      })
-      if (result.error) {
-        await this.removeObjects(uploaded.paths)
-        throw mapSupabaseError(result.error)
-      }
+    planned.forEach(({ path }, index) => {
+      if (failures[index]) return
       uploaded.paths.push(path)
       uploaded.urls.push(bucket.getPublicUrl(path).data.publicUrl)
+    })
+
+    const failure = failures.find((error) => error)
+    if (failure) {
+      await this.removeObjects(uploaded.paths)
+      throw mapSupabaseError(failure)
     }
     return uploaded
   }
